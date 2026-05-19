@@ -13,7 +13,7 @@ import heroImage from '@/assets/hero-model.jpg';
 import abtImage from '@/assets/abt2.jpeg';
 import product1 from '@/assets/product-1.jpg';
 import product2 from '@/assets/product-2.jpg';
-import product3 from '@/assets/product-3.jpg';
+import product3 from '/abt.png';
 import product4 from '@/assets/product-4.jpg';
 import product5 from '@/assets/product-5.jpg';
 import product6 from '@/assets/product-6.jpg';

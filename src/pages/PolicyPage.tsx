@@ -162,7 +162,7 @@ export function ContactPage() {
                     <div className="space-y-1">
                       <p>Phone: <a href="tel:+918008743531" className="text-primary hover:underline">+91 80087 43531</a></p>
                       <p>WhatsApp: <a href="https://wa.me/918008743531" className="text-primary hover:underline">+91 80087 43531</a></p>
-                      <p>Email: <a href="mailto:leenabyalekhya@gmail.com" className="text-primary hover:underline">leenabyalekhya@gmail.com</a></p>
+                      <p>Email: <a href="mailto:leenaweb58@gmail.com " className="text-primary hover:underline">leenaweb58@gmail.com </a></p>
                     </div>
 
                     <div className="text-muted-foreground mt-4">Opening Hours</div>
@@ -190,7 +190,7 @@ export function ContactPage() {
                     <a href="tel:+918008743531" className="rounded-full bg-secondary px-5 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-secondary/80">
                       Call Customer Care
                     </a>
-                    <a href="mailto:leenabyalekhya@gmail.com" className="rounded-full bg-secondary px-5 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-secondary/80">
+                    <a href="mailto:leenaweb58@gmail.com " className="rounded-full bg-secondary px-5 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-secondary/80">
                       Email Us
                     </a>
                   </div>
@@ -201,7 +201,7 @@ export function ContactPage() {
               <div className="relative min-h-[400px] overflow-hidden rounded-xl border border-border lg:min-h-[600px]">
                 <iframe
                   title="Google Maps Location"
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d15225.9!2d78.4!3d17.4!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTfCsDI0JzAwLjAiTiA3OMKwMjQnMDAuMCJF!5e0!3m2!1sen!2sin!4v1600000000000!5m2!1sen!2sin"
+                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d30436.50739563125!2d78.31298644977275!3d17.528341859760953!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bcb8d6f37b22be7%3A0xfdd9ac4ad5b0b7b2!2sAmeenpur%2C%20Miyapur%2C%20Hyderabad%2C%20Telangana!5e0!3m2!1sen!2sin!4v1779161324111!5m2!1sen!2sin"
                   className="absolute inset-0 h-full w-full border-0"
                   allowFullScreen
                   loading="lazy"

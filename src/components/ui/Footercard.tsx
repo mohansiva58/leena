@@ -92,7 +92,7 @@ export default function Footercard() {
                             </li>
                             <li className="flex items-center gap-3 text-muted-foreground text-sm">
                                 <Mail size={16} className="text-primary" />
-                                leenabyalekhya@gmail.com
+                                leenaweb58@gmail.com
                             </li>
                             <li className="flex items-start gap-3 text-muted-foreground text-sm">
                                 <MapPin size={16} className="text-primary mt-0.5" />

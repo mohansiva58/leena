@@ -160,9 +160,9 @@ export function ContactPage() {
 
                     <div className="text-muted-foreground">Customer Care</div>
                     <div className="space-y-1">
-                      <p>Phone: <a href="tel:+918008743531" className="text-primary hover:underline">+91 80087 43531</a></p>
-                      <p>WhatsApp: <a href="https://wa.me/918008743531" className="text-primary hover:underline">+91 80087 43531</a></p>
-                      <p>Email: <a href="mailto:leenaweb58@gmail.com " className="text-primary hover:underline">leenaweb58@gmail.com </a></p>
+                      <p>Phone: <a href="tel:+919032624257" className="text-primary hover:underline">+91 80087 43531</a></p>
+                      <p>WhatsApp: <a href="https://wa.me/919032624257" className="text-primary hover:underline">+91 80087 43531</a></p>
+                      <p>Email: <a href="mailto:leenabyalekhya@gmail.com" className="text-primary hover:underline">leenabyalekhya@gmail.com</a></p>
                     </div>
 
                     <div className="text-muted-foreground mt-4">Opening Hours</div>
@@ -172,7 +172,7 @@ export function ContactPage() {
 
                     <div className="text-muted-foreground mt-4">Custom Designs</div>
                     <div className="mt-4">
-                      <p>Lead Designer: <a href="tel:+918008743531" className="text-primary hover:underline">+91 80087 43531</a></p>
+                      <p>Lead Designer: <a href="tel:+919032624257" className="text-primary hover:underline">+91 80087 43531</a></p>
                     </div>
 
                     <div className="text-muted-foreground mt-4">Careers</div>
@@ -187,10 +187,10 @@ export function ContactPage() {
                     <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer" className="rounded-full bg-secondary px-5 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-secondary/80">
                       Open In Google Maps
                     </a>
-                    <a href="tel:+918008743531" className="rounded-full bg-secondary px-5 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-secondary/80">
+                    <a href="tel:+919032624257" className="rounded-full bg-secondary px-5 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-secondary/80">
                       Call Customer Care
                     </a>
-                    <a href="mailto:leenaweb58@gmail.com " className="rounded-full bg-secondary px-5 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-secondary/80">
+                    <a href="mailto:leenabyalekhya@gmail.com" className="rounded-full bg-secondary px-5 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-secondary/80">
                       Email Us
                     </a>
                   </div>

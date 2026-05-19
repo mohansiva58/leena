@@ -22,7 +22,7 @@ export default function AboutPage() {
                                 <div className="relative">
                                     <div className="aspect-[4/5] rounded-[60px] overflow-hidden">
                                         <img
-                                            src={logo}
+                                            src="/abt.png"
                                             alt="Brand story"
                                             className="w-full h-full object-cover"
                                         />

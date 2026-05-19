@@ -13,7 +13,7 @@ const slides = [
   {
     id: "new-arrivals",
     name: "New Arrivals",
-    bgColor: "#2d0707ff",
+    bgColor: "#55a5c4ff",
     description: "Discover our latest collection of premium sarees, crafted for elegance and designed to make you stand out at any occasion.",
     themeText: "ARRIVALS",
     heroImage: "/image.png",
@@ -31,7 +31,7 @@ const slides = [
   {
     id: "designer",
     name: "Designer Wear",
-    bgColor: "#6e2349ff",
+    bgColor: "#cac33bff",
     description: "Statement pieces with soft movement and beautiful finishes. Redefining modern luxury for the contemporary woman.",
     themeText: "DESIGNER",
     heroImage: "/image2.png",
@@ -40,7 +40,7 @@ const slides = [
   {
     id: "heritage",
     name: "Heritage Styles",
-    bgColor: "#d09fc8ff",
+    bgColor: "#0e1133ff",
     description: "Traditional details refreshed with a modern boutique finish. Embrace the timeless beauty of authentic ethnic wear.",
     themeText: "HERITAGE",
     heroImage: "/image3.png",

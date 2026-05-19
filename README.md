@@ -265,4 +265,4 @@ For issues or questions, check logs:
 
 ## 📝 License
 
-Private - Leena Collection © 2026
+Private - Leena © 2026

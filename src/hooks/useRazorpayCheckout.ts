@@ -87,7 +87,7 @@ export const useRazorpayCheckout = () => {
                 key: razorpayOrder.keyId,
                 amount: razorpayOrder.amount,
                 currency: razorpayOrder.currency,
-                name: 'Leena Collection',
+                name: 'Leena',
                 description: 'Purchase Order',
                 order_id: razorpayOrder.orderId,
                 prefill: {

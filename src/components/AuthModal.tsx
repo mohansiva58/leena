@@ -92,7 +92,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                         {isLogin ? 'Welcome Back!' : 'Create Account'}
                     </h2>
                     <p className="text-primary-foreground/80">
-                        {isLogin ? 'Sign in to continue shopping' : 'Join Leena Collection today'}
+                        {isLogin ? 'Sign in to continue shopping' : 'Join Leena today'}
                     </p>
                 </div>
 

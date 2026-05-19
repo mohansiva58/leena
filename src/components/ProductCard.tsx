@@ -99,13 +99,14 @@ export function ProductCard({
                 <span
                   className="
                     rounded-full
-                    bg-black
+                    bg-blue-600
                     px-3
                     py-1
                     text-[10px]
                     font-semibold
                     tracking-[0.2em]
                     text-white
+                    shadow-sm
                   "
                 >
                   NEW

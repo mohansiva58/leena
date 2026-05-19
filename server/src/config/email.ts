@@ -81,7 +81,7 @@ export const sendOrderConfirmationEmail = async (data: OrderEmailData): Promise<
       .join('');
 
     const mailOptions = {
-      from: `"Leena Collection" <${process.env.EMAIL_USER}>`,
+      from: `"Leena" <${process.env.EMAIL_USER}>`,
       to: data.customerEmail,
       subject: `Order Confirmation - ${data.orderId}`,
       html: `
@@ -99,7 +99,7 @@ export const sendOrderConfirmationEmail = async (data: OrderEmailData): Promise<
           
           <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
             <p style="font-size: 16px; margin-bottom: 20px;">Dear ${data.customerName},</p>
-            <p style="font-size: 16px; margin-bottom: 20px;">Thank you for shopping with Leena Collection! Your order has been confirmed and is being processed.</p>
+            <p style="font-size: 16px; margin-bottom: 20px;">Thank you for shopping with Leena! Your order has been confirmed and is being processed.</p>
             
             <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea;">
               <h2 style="color: #667eea; margin-top: 0;">Order Details</h2>
@@ -140,17 +140,24 @@ export const sendOrderConfirmationEmail = async (data: OrderEmailData): Promise<
             </div>
 
             <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
-              <p style="margin: 0; color: #856404;"><strong>⚠️ Important:</strong> Please note that all sales are final. We do not accept returns or exchanges.</p>
+              <p style="margin: 0; color: #856404; font-size: 14px;"><strong>⚠️ Return & Cancellation Policy:</strong></p>
+              <ul style="margin: 5px 0 0 0; padding-left: 20px; color: #856404; font-size: 13px; line-height: 1.5;">
+                <li>We do not accept returns or exchanges for issues related to satisfaction, color variation, or size.</li>
+                <li>Orders once placed cannot be cancelled.</li>
+                <li>Returns or exchanges will be accepted only if a damaged product is received.</li>
+                <li>Any damage claim must be reported within 24–48 hours of receiving the product.</li>
+                <li>A clear 360° parcel opening video is mandatory to process any damage claim.</li>
+              </ul>
             </div>
 
             <p style="font-size: 14px; color: #666; margin-top: 30px;">If you have any questions about your order, please contact us at . support@leena.com</p>
             
-            <p style="font-size: 16px; margin-top: 30px;">Thank you for choosing Leena Collection!</p>
-            <p style="font-size: 14px; color: #666;">Best regards,<br>Leena Collection Team</p>
+            <p style="font-size: 16px; margin-top: 30px;">Thank you for choosing Leena!</p>
+            <p style="font-size: 14px; color: #666;">Best regards,<br>Leena Team</p>
           </div>
 
           <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
-            <p>© ${new Date().getFullYear()} Leena Collection. All rights reserved.</p>
+            <p>© ${new Date().getFullYear()} Leena. All rights reserved.</p>
           </div>
         </body>
         </html>

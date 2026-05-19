@@ -63,13 +63,11 @@ export default function AboutPage() {
                                 </h2>
 
                                 <p className="text-muted-foreground text-lg leading-relaxed mb-8">
-                                    At Leena Collection, we believe that fashion should be both accessible and exceptional. Our mission is to deliver high-quality women's wear crafted with care and offered at honest prices.
-
+                                    Leena was born out of passion, courage, and a dream to create beautiful outfits that make every woman feel confident and elegant. Founded by Alekhya, an IT professional and a mom, Leena started as a passion-driven journey alongside managing career, motherhood, and everyday life
                                 </p>
 
                                 <p className="text-muted-foreground leading-relaxed mb-10">
-                                    Rooted in the values of sustainability, style, and inclusivity, we design clothing that celebrates diversity in taste, culture, and personality. Whether you’re drawn to bold patterns, timeless silhouettes, or modern minimalism, our collections are thoughtfully created to suit every individual.
-
+                                    With a deep love for fashion and ethnic wear, Alekhya wanted to build a brand that offers stylish, comfortable, and affordable outfits for women who love to feel confident in what they wear. What started as a small idea with limited collections slowly turned into a growing family of customers who trusted and supported the brand from day one.
                                 </p>
 
                                 <div className="flex flex-wrap gap-12">

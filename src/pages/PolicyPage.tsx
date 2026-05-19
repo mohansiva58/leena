@@ -149,8 +149,8 @@ export function ContactPage() {
                 <div className="mt-8 rounded-lg border border-border bg-secondary/50 p-6">
                   <p className="text-sm leading-relaxed text-foreground">
                     T.C. 22/2463-1<br />
-                    Sankar Road, Sasthamangalam<br />
-                    Hyderabad, Telangana, India
+                    Ameenpur, Miyapur, Telangana
+
                   </p>
                 </div>
 

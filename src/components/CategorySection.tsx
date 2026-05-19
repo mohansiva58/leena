@@ -105,8 +105,8 @@ export function CategorySection() {
             ))}
           </CarouselContent>
 
-          <CarouselPrevious className="left-2 top-[38%] hidden h-10 w-10 border-border bg-white text-foreground shadow-md hover:bg-secondary disabled:hidden md:flex" />
-          <CarouselNext className="right-2 top-[38%] h-10 w-10 border-border bg-white text-foreground shadow-md hover:bg-secondary disabled:hidden" />
+          {/* <CarouselPrevious className="left-2 top-[38%] hidden h-10 w-10 border-border bg-white text-foreground shadow-md hover:bg-secondary disabled:hidden md:flex" />
+          <CarouselNext className="right-2 top-[38%] h-10 w-10 border-border bg-white text-foreground shadow-md hover:bg-secondary disabled:hidden" /> */}
         </Carousel>
       </div>
     </section>

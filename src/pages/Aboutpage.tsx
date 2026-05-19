@@ -82,8 +82,12 @@ export default function AboutPage() {
                                         <p className="text-muted-foreground text-sm mt-1">Orders Served</p>
                                     </div>
                                     <div>
-                                        <span className="text-4xl font-light text-foreground">100%</span>
-                                        <p className="text-muted-foreground text-sm mt-1">Sustainable</p>
+                                        <span className="text-4xl font-light text-foreground">∞</span>
+                                        <p className="text-muted-foreground text-sm mt-1">Hand picked Items</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-4xl font-light text-foreground">8K+</span>
+                                        <p className="text-muted-foreground text-sm mt-1">Insta Followers</p>
                                     </div>
                                 </div>
                             </motion.div>

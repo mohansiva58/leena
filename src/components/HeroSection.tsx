@@ -13,7 +13,7 @@ const slides = [
   {
     id: "new-arrivals",
     name: "New Arrivals",
-    bgColor: "#1a1844",
+    bgColor: "#2d0707ff",
     description: "Discover our latest collection of premium sarees, crafted for elegance and designed to make you stand out at any occasion.",
     themeText: "ARRIVALS",
     heroImage: "/image.png",
@@ -22,29 +22,29 @@ const slides = [
   {
     id: "festive",
     name: "Festive Drapes",
-    bgColor: "#1a1844",
+    bgColor: "#2f82b2ff",
     description: "Rich colors, graceful textures, and occasion-ready silhouettes. Make every celebration memorable with our festive edits.",
     themeText: "FESTIVE",
-    heroImage: "https://images.unsplash.com/photo-1583391733958-d153111b150b?q=80&w=2000&auto=format&fit=crop",
-    thumbnail: "https://images.unsplash.com/photo-1583391733958-d153111b150b?q=80&w=400&auto=format&fit=crop",
+    heroImage: "/image4.png",
+    thumbnail: "/image4.png",
   },
   {
     id: "designer",
     name: "Designer Wear",
-    bgColor: "#1a1844",
+    bgColor: "#6e2349ff",
     description: "Statement pieces with soft movement and beautiful finishes. Redefining modern luxury for the contemporary woman.",
     themeText: "DESIGNER",
-    heroImage: "https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?q=80&w=2000&auto=format&fit=crop",
-    thumbnail: "https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?q=80&w=400&auto=format&fit=crop",
+    heroImage: "/image2.png",
+    thumbnail: "/image2.png",
   },
   {
     id: "heritage",
     name: "Heritage Styles",
-    bgColor: "#1a1844",
+    bgColor: "#d09fc8ff",
     description: "Traditional details refreshed with a modern boutique finish. Embrace the timeless beauty of authentic ethnic wear.",
     themeText: "HERITAGE",
-    heroImage: "https://images.unsplash.com/photo-1605763240000-7e93b172d754?q=80&w=2000&auto=format&fit=crop",
-    thumbnail: "https://images.unsplash.com/photo-1605763240000-7e93b172d754?q=80&w=400&auto=format&fit=crop",
+    heroImage: "/image3.png",
+    thumbnail: "/image3.png",
   },
 ];
 
@@ -198,7 +198,7 @@ export function HeroSection() {
       </div>
 
       {/* ─── BOOK CTA — bottom center ─── */}
-      <div className="absolute z-30 bottom-16 left-1/2 -translate-x-1/2">
+      <div className="absolute z-30 bottom-15 left-1/2 -translate-x-1/2">
         <button
           onClick={(e) => { e.stopPropagation(); navigate('/shop'); }}
           className="inline-flex items-center gap-2 bg-white text-slate-900 font-bold rounded-full px-7 py-3 text-sm shadow-xl hover:bg-neutral-100 transition-colors"

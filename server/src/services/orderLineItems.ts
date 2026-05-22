@@ -2,6 +2,12 @@ import mongoose from 'mongoose';
 import Product from '../models/Product';
 import Sale from '../models/Sale';
 
+interface ImageItem {
+    image: string;
+    images?: string[];
+    colors?: Array<{ image?: { url: string }; images?: Array<{ url: string }> }>;
+}
+
 export interface ResolvedLine {
     productId: string;
     name: string;
@@ -23,7 +29,7 @@ export interface RawOrderItemInput {
     color?: string;
 }
 
-function resolveVariantImage(item: any, raw: RawOrderItemInput): string {
+function resolveVariantImage(item: ImageItem, raw: RawOrderItemInput): string {
     const requestedImage = raw.variantImage || raw.image;
     if (!requestedImage) return item.image;
 

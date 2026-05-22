@@ -5,11 +5,28 @@ import { toast } from 'sonner';
 import { api } from '@/services/api';
 import { categories } from '@/lib/products';
 
+interface Product {
+    _id?: string;
+    productId?: string;
+    name?: string;
+    price?: number;
+    originalPrice?: number;
+    category?: string;
+    description?: string;
+    stock?: number;
+    setType?: string;
+    isNew?: boolean;
+    isBestseller?: boolean;
+    sizes?: string;
+    image?: string;
+    images?: string[];
+}
+
 interface AddProductModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
-    product?: any;
+    product?: Product;
 }
 
 interface ValidationErrorDetail {

@@ -21,7 +21,7 @@ export function ProductGallery({ images, productName, selectedImage, onSelectedI
       totalImages: images.length,
       images: images.map(img => img.substring(0, 50) + '...')
     });
-  }, [images.join(','), productName]);
+  }, [images, productName]);
 
   // Sync selected index when selectedImage or images change
   useEffect(() => {
@@ -33,7 +33,7 @@ export function ProductGallery({ images, productName, selectedImage, onSelectedI
       }
     }
     setSelectedIndex(0);
-  }, [selectedImage, images.join(',')]);
+  }, [selectedImage, images]);;
 
   const handleImageError = (index: number) => {
     setImageErrors(prev => new Set(prev).add(index));

@@ -6,9 +6,15 @@ import Product from '../models/Product';
 import Sale from '../models/Sale';
 import { cacheGet, cacheSet, cacheDel, CACHE_TTL } from '../utils/cache';
 
+interface ImageItem {
+    image: string;
+    images?: string[];
+    colors?: Array<{ image?: { url: string }; images?: Array<{ url: string }> }>;
+}
+
 const getCacheKey = (userId: string) => `cart:${userId}`;
 
-const resolveVariantImage = (product: any, variantImage?: string): string => {
+const resolveVariantImage = (product: ImageItem, variantImage?: string): string => {
     if (!variantImage) return product.image;
     const allowedImages = new Set<string>([product.image, ...(product.images || [])]);
     if (product.colors && Array.isArray(product.colors)) {

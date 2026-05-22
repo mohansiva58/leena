@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
@@ -59,15 +59,15 @@ export function HeroSection() {
     setCurrentIndex(index);
   };
 
-  const nextSlide = () => {
+  const nextSlide = useCallback(() => {
     if (isAnimating) return;
     setCurrentIndex((prev) => (prev + 1) % slides.length);
-  };
+  }, [isAnimating]);
 
-  const prevSlide = () => {
+  const prevSlide = useCallback(() => {
     if (isAnimating) return;
     setCurrentIndex((prev) => (prev - 1 + slides.length) % slides.length);
-  };
+  }, [isAnimating]);
 
   const resetAutoPlay = () => {
     if (autoPlayRef.current) clearInterval(autoPlayRef.current);
@@ -95,7 +95,7 @@ export function HeroSection() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isAnimating]);
+  }, [isAnimating, nextSlide, prevSlide]);
 
   const currentSlide = slides[currentIndex];
 

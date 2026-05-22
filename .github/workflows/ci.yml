@@ -21,7 +21,7 @@ jobs:
         run: node --version && npm --version
 
       - name: Install root deps
-        run: npm ci --legacy-peer-deps
+        run: npm ci
 
       - name: Lint
         run: npm run lint
@@ -34,15 +34,7 @@ jobs:
 
       - name: Install server deps
         working-directory: server
-        run: npm cache clean --force && npm install --legacy-peer-deps --verbose || (echo "Install failed, showing error details:" && npm list && exit 1)
-
-      - name: Check server npm issues
-        if: failure()
-        working-directory: server
-        run: |
-          echo "=== npm cache ===" && npm cache verify
-          echo "=== package.json ===" && cat package.json
-          echo "=== package-lock.json (first 50 lines) ===" && head -50 package-lock.json
+        run: npm ci
 
       - name: Typecheck server
         working-directory: server

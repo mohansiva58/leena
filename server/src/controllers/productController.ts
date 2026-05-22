@@ -203,7 +203,7 @@ export const getAllProducts = async (req: Request, res: Response): Promise<void>
 
 export const getProductById = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const cacheKey = `product:${id}`;
 
         const cached = await cacheGet(cacheKey);
@@ -255,7 +255,7 @@ export const getFeaturedProducts = async (_req: Request, res: Response): Promise
 
 export const updateProduct = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const updates = req.body;
         const files = req.files as unknown as { [fieldname: string]: Express.Multer.File[] };
         
@@ -315,7 +315,7 @@ export const updateProduct = async (req: AuthRequest, res: Response): Promise<vo
 
 export const deleteProduct = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         let deleted = await Product.findOneAndDelete({ productId: id });
         if (!deleted) deleted = await Product.findByIdAndDelete(id);

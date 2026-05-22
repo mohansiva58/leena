@@ -92,7 +92,7 @@ export const getAllOrders = async (req: AuthRequest, res: Response): Promise<voi
 
 export const updateOrderStatus = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { orderId } = req.params;
+        const orderId = String(req.params.orderId);
         const { status } = req.body;
 
         if (!status || typeof status !== 'string') {

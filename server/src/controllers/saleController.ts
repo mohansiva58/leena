@@ -100,7 +100,7 @@ export const getActiveSales = async (_req: Request, res: Response): Promise<void
 
 export const getSaleById = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const cacheKey = `sale:${id}`;
 
         const cached = await cacheGet(cacheKey);
@@ -122,7 +122,7 @@ export const getSaleById = async (req: Request, res: Response): Promise<void> =>
 
 export const updateSale = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const updates = req.body;
         const files = req.files as unknown as { [fieldname: string]: Express.Multer.File[] };
         
@@ -174,7 +174,7 @@ export const updateSale = async (req: AuthRequest, res: Response): Promise<void>
 
 export const deleteSale = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         let deleted = await Sale.findOneAndDelete({ saleId: id });
         if (!deleted) deleted = await Sale.findByIdAndDelete(id);
@@ -254,7 +254,7 @@ export const getActiveSaleMode = async (_req: Request, res: Response): Promise<v
 
 export const toggleSaleMode = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { saleName } = req.params;
+        const saleName = String(req.params.saleName);
 
         // Deactivate all other sale modes
         await SaleMode.updateMany({ saleName: { $ne: saleName } }, { isActive: false });
@@ -290,7 +290,7 @@ export const toggleSaleMode = async (req: AuthRequest, res: Response): Promise<v
 
 export const deleteSaleMode = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { saleName } = req.params;
+        const saleName = String(req.params.saleName);
 
         const deletedMode = await SaleMode.findOneAndDelete({ saleName });
 

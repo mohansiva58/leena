@@ -1,12 +1,16 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export interface IColorImage {
+    _id?: string;
+    url: string;
+    publicId?: string;
+}
+
 export interface IColorVariant {
     colorName: string;
     colorCode?: string; // Hex color code
-    image: string; // Main image for this color
-    images?: string[]; // Additional images for this color
-    cloudinaryId?: string;
-    cloudinaryIds?: string[];
+    image: IColorImage; // Main image for this color
+    images?: IColorImage[]; // Additional images for this color
     stock?: number; // Stock for this specific color
 }
 
@@ -33,6 +37,11 @@ export interface IProduct extends Document {
     createdAt: Date;
     updatedAt: Date;
 }
+
+const ColorImageSchema = new Schema({
+    url: { type: String, required: true },
+    publicId: { type: String }
+});
 
 const ProductSchema: Schema = new Schema(
     {
@@ -62,13 +71,11 @@ const ProductSchema: Schema = new Schema(
         weight: { type: Number, min: 0 }, // Weight in kg
         setType: { type: String }, // e.g., "1 piece", "2 piece set", "3 piece set"
         colors: [{
-            colorName: { type: String },
+            colorName: { type: String, required: true },
             colorCode: { type: String }, // Hex code like #FF0000
-            image: { type: String },
-            images: [{ type: String }],
-            cloudinaryId: { type: String },
-            cloudinaryIds: [{ type: String }],
-            stock: { type: Number, min: 0 }
+            image: { type: ColorImageSchema, required: true },
+            images: [ColorImageSchema],
+            stock: { type: Number, min: 0, default: 0 }
         }],
         cloudinaryId: { type: String },
         cloudinaryIds: [{ type: String }],

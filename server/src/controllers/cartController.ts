@@ -8,9 +8,23 @@ import { cacheGet, cacheSet, cacheDel, CACHE_TTL } from '../utils/cache';
 
 const getCacheKey = (userId: string) => `cart:${userId}`;
 
-const resolveVariantImage = (product: { image: string; images?: string[] }, variantImage?: string): string => {
+const resolveVariantImage = (product: any, variantImage?: string): string => {
     if (!variantImage) return product.image;
-    const allowedImages = new Set([product.image, ...(product.images || [])]);
+    const allowedImages = new Set<string>([product.image, ...(product.images || [])]);
+    if (product.colors && Array.isArray(product.colors)) {
+        for (const col of product.colors) {
+            if (col.image?.url) {
+                allowedImages.add(col.image.url);
+            }
+            if (col.images && Array.isArray(col.images)) {
+                for (const img of col.images) {
+                    if (img?.url) {
+                        allowedImages.add(img.url);
+                    }
+                }
+            }
+        }
+    }
     return allowedImages.has(variantImage) ? variantImage : product.image;
 };
 
@@ -60,7 +74,7 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<void> 
             return;
         }
 
-        const { productId, size, quantity = 1, variantImage } = req.body;
+        const { productId, size, quantity = 1, variantImage, color } = req.body;
 
         if (!productId || !size) {
             res.status(400).json({ error: 'Product ID and size are required' });
@@ -97,9 +111,9 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<void> 
             cart = new Cart({ userId, items: [] });
         }
 
-        // Check if item already exists
+        // Check if item already exists (by productId, size, image and color)
         const existingItemIndex = cart.items.findIndex(
-            (item) => item.productId === canonicalId && item.size === size && item.image === lineImage
+            (item) => item.productId === canonicalId && item.size === size && item.image === lineImage && item.color === color
         );
 
         const totalQuantity = existingItemIndex > -1 
@@ -127,6 +141,7 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<void> 
                 size,
                 quantity,
                 variantImage: lineImage,
+                color,
             });
         }
 
@@ -147,7 +162,7 @@ export const updateCartItem = async (req: AuthRequest, res: Response): Promise<v
         const userId = req.user?.uid;
         if (!userId) { res.status(401).json({ error: 'Unauthorized' }); return; }
 
-        const { productId, size, quantity } = req.body;
+        const { productId, size, quantity, color } = req.body;
 
         if (!productId || !size || quantity === undefined) {
             res.status(400).json({ error: 'Product ID, size, and quantity are required' });
@@ -186,7 +201,7 @@ export const updateCartItem = async (req: AuthRequest, res: Response): Promise<v
         }
 
         const itemIndex = cart.items.findIndex(
-            (item) => item.productId === canonicalId && item.size === size
+            (item) => item.productId === canonicalId && item.size === size && (color === undefined || item.color === color)
         );
 
         if (itemIndex === -1) {
@@ -211,12 +226,13 @@ export const removeFromCart = async (req: AuthRequest, res: Response): Promise<v
         if (!userId) { res.status(401).json({ error: 'Unauthorized' }); return; }
 
         const { productId, size } = req.params;
+        const color = req.query.color as string | undefined;
 
         const cart = await Cart.findOne({ userId });
         if (!cart) { res.status(404).json({ error: 'Cart not found' }); return; }
 
         cart.items = cart.items.filter(
-            (item) => !(item.productId === productId && item.size === size)
+            (item) => !(item.productId === productId && item.size === size && (!color || item.color === color))
         );
         await cart.save();
 

@@ -1,8 +1,8 @@
 /**
- * Shipping cost calculator based on state and weight
+ * Shipping cost calculator based on state (flat rate per order)
  */
 
-// State to rate mapping (₹ per kg)
+// State to rate mapping (₹ flat shipping fee per order)
 const stateRates: Record<string, number> = {
   // South India - Premium rates
   'Telangana': 70,
@@ -53,44 +53,33 @@ export interface ShippingCalculationParams {
 
 export interface ShippingCalculationResult {
   totalWeight: number;
-  chargeableWeight: number; // Minimum 1 kg
+  chargeableWeight: number; // Minimum 1 kg (preserved for API compatibility)
   ratePerKg: number;
   shippingCost: number;
   breakdown: string; // For display
 }
 
 /**
- * Calculate shipping cost based on state and total weight
- * Minimum 1 kg charge for shipping
+ * Calculate shipping cost based on state (flat rate per order)
  */
 export function calculateShippingCost(params: ShippingCalculationParams): ShippingCalculationResult {
-  const { state, cartItems } = params;
+  const { state, subtotal } = params;
 
-  // Get rate per kg for the state (case-insensitive)
-  const ratePerKg = stateRates[state] || stateRates[state.toLowerCase()] || stateRates['default'];
+  // Get rate for the state (case-insensitive)
+  const rate = stateRates[state] || stateRates[state.toLowerCase()] || stateRates['default'];
 
-  // Calculate total weight from all items
-  const totalWeight = cartItems.reduce((sum, item) => {
-    return sum + ((item.weight || 0.5) * item.quantity);
-  }, 0);
-
-  // Apply minimum 1 kg charge for shipping
-  // If total weight is less than 1 kg, charge for 1 kg
-  // If more than 1 kg, round up to nearest kg
-  const chargeableWeight = Math.max(1, Math.ceil(totalWeight * 10) / 10); // Round to 1 decimal place
-
-  // Calculate shipping cost
-  const shippingCost = Math.ceil(chargeableWeight * ratePerKg);
+  // Calculate flat shipping cost
+  const shippingCost = subtotal >= 2000 ? 0 : rate;
 
   // Create breakdown string for display
-  const breakdown = totalWeight < 1 
-    ? `Minimum 1 kg charge: ${chargeableWeight} kg × ₹${ratePerKg}/kg = ₹${shippingCost}`
-    : `Total weight: ${totalWeight.toFixed(2)} kg → Chargeable: ${chargeableWeight.toFixed(1)} kg × ₹${ratePerKg}/kg = ₹${shippingCost}`;
+  const breakdown = subtotal >= 2000
+    ? `Free shipping on orders above ₹2,000!`
+    : `Flat shipping charge for ${state}: ₹${shippingCost}`;
 
   return {
-    totalWeight,
-    chargeableWeight,
-    ratePerKg,
+    totalWeight: 0,
+    chargeableWeight: 0,
+    ratePerKg: rate,
     shippingCost,
     breakdown,
   };

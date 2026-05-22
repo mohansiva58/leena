@@ -123,7 +123,12 @@ export default function ProductDetailPage() {
 
         setProduct(data);
 
-        setSelectedImage(data.image);
+        if (data.colors && data.colors.length > 0) {
+          setSelectedColor(data.colors[0].colorName);
+          setSelectedImage(data.colors[0].image?.url || data.image);
+        } else {
+          setSelectedImage(data.image);
+        }
 
         const allProducts =
           await productService.getAllProducts();
@@ -196,20 +201,37 @@ export default function ProductDetailPage() {
   const galleryImages = (() => {
     const images: string[] = [];
 
-    if (product.image?.trim()) {
-      images.push(product.image);
-    }
+    const activeColorVariant = product.colors?.find(
+      (c) => c.colorName === selectedColor
+    );
 
-    if (
-      Array.isArray(product.images) &&
-      product.images.length > 0
-    ) {
-      const additional = product.images.filter(
-        (img: string) =>
-          img?.trim() && img !== product.image
-      );
+    if (activeColorVariant) {
+      if (activeColorVariant.image?.url?.trim()) {
+        images.push(activeColorVariant.image.url);
+      }
+      if (Array.isArray(activeColorVariant.images)) {
+        activeColorVariant.images.forEach((img) => {
+          if (img?.url?.trim()) {
+            images.push(img.url);
+          }
+        });
+      }
+    } else {
+      if (product.image?.trim()) {
+        images.push(product.image);
+      }
 
-      images.push(...additional);
+      if (
+        Array.isArray(product.images) &&
+        product.images.length > 0
+      ) {
+        const additional = product.images.filter(
+          (img: string) =>
+            img?.trim() && img !== product.image
+        );
+
+        images.push(...additional);
+      }
     }
 
     return [...new Set(images)].filter(Boolean);
@@ -231,11 +253,16 @@ export default function ProductDetailPage() {
       return;
     }
 
+    const activeColorVariant = product.colors?.find(
+      (c) => c.colorName === selectedColor
+    );
+    const cartImage = selectedImage || activeColorVariant?.image?.url || product.image;
+
     const success = addItem(
       product,
       selectedSize,
       quantity,
-      selectedImage || product.image,
+      cartImage,
       selectedColor || undefined
     );
 
@@ -257,11 +284,16 @@ export default function ProductDetailPage() {
       return;
     }
 
+    const activeColorVariant = product.colors?.find(
+      (c) => c.colorName === selectedColor
+    );
+    const cartImage = selectedImage || activeColorVariant?.image?.url || product.image;
+
     const success = addItem(
       product,
       selectedSize,
       quantity,
-      selectedImage || product.image,
+      cartImage,
       selectedColor || undefined
     );
 
@@ -349,6 +381,7 @@ export default function ProductDetailPage() {
                 <ProductGallery
                   images={galleryImages}
                   productName={product.name}
+                  selectedImage={selectedImage}
                   onSelectedImageChange={(img) =>
                     setSelectedImage(img)
                   }
@@ -657,7 +690,7 @@ export default function ProductDetailPage() {
                               );
 
                               setSelectedImage(
-                                color.image
+                                color.image?.url
                               );
                             }}
                             className="flex flex-col items-center gap-2"

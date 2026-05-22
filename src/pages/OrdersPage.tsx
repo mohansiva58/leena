@@ -25,6 +25,8 @@ interface OrderItem {
     quantity: number;
     price: number;
     image?: string;
+    variantImage?: string;
+    color?: string;
 }
 
 interface Order {
@@ -231,15 +233,19 @@ export default function OrdersPage() {
                                                                 {order.items.map((item, i) => (
                                                                     <div key={i} className="flex gap-3 text-sm">
                                                                         <div className="w-12 h-12 bg-secondary rounded-md overflow-hidden flex-shrink-0">
-                                                                            {item.image ? (
-                                                                                <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                                                                            {(item.variantImage || item.image) ? (
+                                                                                <img src={item.variantImage || item.image} alt={item.name} className="w-full h-full object-cover" />
                                                                             ) : (
                                                                                 <div className="w-full h-full bg-secondary" />
                                                                             )}
                                                                         </div>
                                                                         <div>
                                                                             <p className="font-medium text-foreground">{item.name}</p>
-                                                                            <p className="text-muted-foreground">Size: {item.size} • Qty: {item.quantity}</p>
+                                                                            <p className="text-muted-foreground">
+                                                                                Size: {item.size}
+                                                                                {item.color && ` • Color: ${item.color}`}
+                                                                                • Qty: {item.quantity}
+                                                                            </p>
                                                                             <p className="font-medium">₹{item.price.toLocaleString()}</p>
                                                                         </div>
                                                                     </div>

@@ -11,6 +11,7 @@ export interface ResolvedLine {
     quantity: number;
     source: 'product' | 'sale';
     variantImage?: string;
+    color?: string;
 }
 
 export interface RawOrderItemInput {
@@ -19,13 +20,28 @@ export interface RawOrderItemInput {
     quantity?: number;
     image?: string;
     variantImage?: string;
+    color?: string;
 }
 
-function resolveVariantImage(item: { image: string; images?: string[] }, raw: RawOrderItemInput): string {
+function resolveVariantImage(item: any, raw: RawOrderItemInput): string {
     const requestedImage = raw.variantImage || raw.image;
     if (!requestedImage) return item.image;
 
-    const allowedImages = new Set([item.image, ...(item.images || [])]);
+    const allowedImages = new Set<string>([item.image, ...(item.images || [])]);
+    if (item.colors && Array.isArray(item.colors)) {
+        for (const col of item.colors) {
+            if (col.image?.url) {
+                allowedImages.add(col.image.url);
+            }
+            if (col.images && Array.isArray(col.images)) {
+                for (const img of col.images) {
+                    if (img?.url) {
+                        allowedImages.add(img.url);
+                    }
+                }
+            }
+        }
+    }
     return allowedImages.has(requestedImage) ? requestedImage : item.image;
 }
 
@@ -62,6 +78,7 @@ export async function resolveOrderLines(
                 quantity: qty,
                 source: 'product',
                 variantImage: lineImage,
+                color: raw.color,
             });
             subtotal += product.price * qty;
             continue;
@@ -85,6 +102,7 @@ export async function resolveOrderLines(
                 quantity: qty,
                 source: 'sale',
                 variantImage: lineImage,
+                color: raw.color,
             });
             subtotal += sale.price * qty;
             continue;

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from 'firebase/auth';
 import { authService } from '@/services/authService';
+import { api } from '@/services/api';
 import { toast } from 'sonner';
 
 import { AuthContext, AuthContextType } from './auth-context';
@@ -23,6 +24,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setLoading(true);
             await authService.signInWithEmail(email, password);
             toast.success('Signed in successfully!');
+            api.post('/users/login-notify').catch((err) => console.error('Login notify error:', err));
         } catch (error: unknown) {
             const firebaseError = error as { code: string };
             const errorCode = firebaseError.code;
@@ -52,6 +54,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setLoading(true);
             await authService.signUpWithEmail(email, password);
             toast.success('Account created successfully!');
+            api.post('/users/login-notify').catch((err) => console.error('Login notify error:', err));
         } catch (error: unknown) {
             const firebaseError = error as { code: string };
             const errorCode = firebaseError.code;
@@ -83,6 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setLoading(true);
             await authService.signInWithGoogle();
             toast.success('Signed in with Google!');
+            api.post('/users/login-notify').catch((err) => console.error('Login notify error:', err));
         } catch (error: unknown) {
             const firebaseError = error as { code: string };
             const errorCode = firebaseError.code;

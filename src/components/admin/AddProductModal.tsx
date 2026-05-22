@@ -1,15 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Upload, Plus, Trash2, Image as ImageIcon } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { X, Upload, Plus, Image as ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/services/api';
-import { Product } from '@/lib/products';
+import { categories } from '@/lib/products';
 
 interface AddProductModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
-    product?: Product;
+    product?: any;
 }
 
 interface ValidationErrorDetail {
@@ -36,7 +36,6 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
         category: '',
         description: '',
         stock: '100',
-        weight: '',
         setType: '1 piece',
         isNew: false,
         isBestseller: false,
@@ -48,9 +47,6 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
     const [additionalImages, setAdditionalImages] = useState<File[]>([]);
     const [additionalImagePreviews, setAdditionalImagePreviews] = useState<string[]>([]);
     const [existingImageUrls, setExistingImageUrls] = useState<string[]>([]);
-    const [colors, setColors] = useState<Array<{ colorName: string; colorCode: string }>>([]);
-    const [newColorName, setNewColorName] = useState('');
-    const [newColorCode, setNewColorCode] = useState('#FF0000');
 
     useEffect(() => {
         if (isOpen) {
@@ -62,7 +58,6 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                     category: product.category,
                     description: product.description,
                     stock: product.stock?.toString() || '100',
-                    weight: product.weight?.toString() || '',
                     setType: product.setType || '1 piece',
                     isNew: product.newArrival || product.isNew || false,
                     isBestseller: product.isBestseller || false,
@@ -71,10 +66,6 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                 setMainImagePreview(product.image);
                 setAdditionalImagePreviews(product.images || []);
                 setExistingImageUrls(product.images || []);
-                setColors((product.colors || []).map(c => ({
-                    colorName: c.colorName,
-                    colorCode: c.colorCode || '#000000'
-                })));
             } else {
                 setFormData({
                     name: '',
@@ -83,7 +74,6 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                     category: '',
                     description: '',
                     stock: '100',
-                    weight: '',
                     setType: '1 piece',
                     isNew: false,
                     isBestseller: false,
@@ -94,7 +84,6 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                 setAdditionalImages([]);
                 setAdditionalImagePreviews([]);
                 setExistingImageUrls([]);
-                setColors([]);
             }
         }
     }, [isOpen, product]);
@@ -127,24 +116,10 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
         }
 
         const files = Array.from(e.target.files);
-        console.log('=== FILE SELECTION DEBUG ===');
-        console.log(`✓ Files selected: ${files.length}`);
-        files.forEach((f, i) => console.log(`  File ${i + 1}: ${f.name} (${(f.size / 1024).toFixed(2)} KB)`));
-        console.log(`Before: additionalImages=${additionalImages.length}, existingImageUrls=${existingImageUrls.length}`);
-
         const newPreviews = files.map(file => URL.createObjectURL(file));
         
-        setAdditionalImages(prev => {
-            const updated = [...prev, ...files];
-            console.log(`✓ additionalImages updated: ${prev.length} + ${files.length} = ${updated.length}`);
-            return updated;
-        });
-
-        setAdditionalImagePreviews(prev => {
-            const updated = [...prev, ...newPreviews];
-            console.log(`✓ additionalImagePreviews updated: ${prev.length} + ${newPreviews.length} = ${updated.length}`);
-            return updated;
-        });
+        setAdditionalImages(prev => [...prev, ...files]);
+        setAdditionalImagePreviews(prev => [...prev, ...newPreviews]);
 
         e.target.value = '';
         toast.success(`✓ Added ${files.length} image(s)`);
@@ -205,97 +180,35 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
 
         try {
             const data = new FormData();
+            
             Object.entries(formData).forEach(([key, value]) => {
                 data.append(key, String(value));
             });
 
-            // Add colors as JSON
-            if (colors.length > 0) {
-                data.append('colors', JSON.stringify(colors));
-            }
-
             if (mainImage) {
                 data.append('image', mainImage);
-                console.log('✓ New main image provided');
             } else if (product && mainImagePreview) {
-                // When editing without changing main image, preserve the existing one
                 data.append('existingMainImage', mainImagePreview);
-                console.log('✓ Preserving existing main image:', mainImagePreview.substring(0, 60));
             }
 
-            // Preserve existing additional images from database
-            console.log(`Adding ${existingImageUrls.length} existing additional images from database`);
-            existingImageUrls.forEach((url, i) => {
-                console.log(`  Existing additional ${i + 1}: ${url.substring(0, 60)}...`);
+            existingImageUrls.forEach((url) => {
                 data.append('existingImages', url);
             });
 
-            // Add new additional images
-            console.log(`Adding ${additionalImages.length} new image files`);
-            additionalImages.forEach((file, i) => {
-                console.log(`  New ${i + 1}: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
+            additionalImages.forEach((file) => {
                 data.append('images', file);
             });
 
-            // Log FormData contents
-            console.log('=== FORM SUBMISSION ===');
-            console.log(`Main image: ${mainImage ? '✓ New file' : mainImagePreview ? '✓ Existing (preserved)' : '✗ MISSING'}`);
-            console.log(`Total additional images: ${existingImageUrls.length + additionalImages.length}`);
-            console.log(`  - Existing additional: ${existingImageUrls.length}`);
-            console.log(`  - New additional files: ${additionalImages.length}`);
-            
-            let existingCount = 0;
-            let newCount = 0;
-            let hasMainImage = false;
-            let hasExistingMain = false;
-            
-            for (const [key, value] of data.entries()) {
-                if (key === 'image' && value instanceof File) {
-                    hasMainImage = true;
-                    console.log(`  ✓ Main image File in FormData: ${value.name} (${(value.size / 1024).toFixed(2)} KB)`);
-                }
-                if (key === 'existingMainImage') {
-                    hasExistingMain = true;
-                    console.log(`  ✓ Existing main image preserved: ${String(value).substring(0, 60)}...`);
-                }
-                if (key === 'existingImages') existingCount++;
-                if (key === 'images' && value instanceof File) {
-                    newCount++;
-                    console.log(`  ✓ Additional File in FormData: ${value.name} (${(value.size / 1024).toFixed(2)} KB)`);
-                }
-            }
-            console.log(`✓ FormData validation:
-  - Main image: ${hasMainImage || hasExistingMain ? '✓ Present' : '✗ MISSING'}
-  - Existing additional: ${existingCount}
-  - New additional: ${newCount}`);
-            
-            if (!hasMainImage && !hasExistingMain) {
-                toast.error('ERROR: Main image was not added to FormData!');
-                setLoading(false);
-                return;
-            }
-
             if (product) {
-                toast.loading(`Updating product with ${existingImageUrls.length + additionalImages.length} image(s)...`);
                 const productId = product.productId || product._id || product.id;
                 await api.put(`/products/${productId}`, data, {
-                    headers: { 
-                        // Don't set Content-Type for FormData - let axios/browser handle it
-                        'Content-Type': undefined,
-                    },
+                    headers: { 'Content-Type': undefined },
                 });
-                toast.dismiss();
                 toast.success(`Product updated! Saved ${existingImageUrls.length + additionalImages.length} image(s)`);
             } else {
-                toast.loading(`Creating product with ${existingImageUrls.length + additionalImages.length} image(s)...`);
-                const response = await api.post('/products', data, {
-                    headers: { 
-                        // Don't set Content-Type for FormData - let axios/browser handle it
-                        'Content-Type': undefined,
-                    },
+                await api.post('/products', data, {
+                    headers: { 'Content-Type': undefined },
                 });
-                console.log('Product created:', response.data);
-                toast.dismiss();
                 toast.success(`Product created! Saved ${existingImageUrls.length + additionalImages.length} image(s)`);
             }
 
@@ -310,7 +223,6 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                 category: '',
                 description: '',
                 stock: '100',
-                weight: '',
                 setType: '1 piece',
                 isNew: false,
                 isBestseller: false,
@@ -321,22 +233,8 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
             setAdditionalImages([]);
             setAdditionalImagePreviews([]);
             setExistingImageUrls([]);
-
         } catch (err: unknown) {
             const error = err as ApiErrorResponse;
-            console.error('Create product error:', error);
-            console.error('Error response:', error.response?.data);
-            
-            if (error.response?.data?.details) {
-                const validationErrors = error.response.data.details.map((d: ValidationErrorDetail) => 
-                    `${d.field}: ${d.message}`
-                ).join(', ');
-                toast.error(`Validation failed: ${validationErrors}`);
-            } else if (error.response?.data?.error) {
-                toast.error(error.response.data.error);
-            } else {
-                toast.error('Failed to create product');
-            }
         } finally {
             setLoading(false);
         }
@@ -371,8 +269,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                                         value={formData.name}
                                         onChange={handleInputChange}
                                         required
-                                        className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
-                                        placeholder="e.g. Red Silk Saree"
+                                        className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-[#06095b]"
                                     />
                                 </div>
 
@@ -409,13 +306,12 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                                         value={formData.category}
                                         onChange={handleInputChange}
                                         required
-                                        className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
+                                        className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-[#06095b]"
                                     >
                                         <option value="">Select Category</option>
-                                        <option value="Sarees">Sarees</option>
-                                        <option value="Lehengas">Lehengas</option>
-                                        <option value="Salwar Kameez">Salwar Kameez</option>
-                                        <option value="Kurtas">Kurtas</option>
+                                        {categories.filter(c => c !== 'All').map(c => (
+                                            <option key={c} value={c}>{c}</option>
+                                        ))}
                                     </select>
                                 </div>
 
@@ -427,22 +323,11 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                                         value={formData.stock}
                                         onChange={handleInputChange}
                                         required
-                                        className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
+                                        className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-[#06095b]"
                                     />
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Weight (kg)</label>
-                                    <input
-                                        type="number"
-                                        name="weight"
-                                        value={formData.weight}
-                                        onChange={handleInputChange}
-                                        step="0.1"
-                                        className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
-                                        placeholder="e.g., 0.5"
-                                    />
-                                </div>
+
 
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Set Type</label>
@@ -450,7 +335,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                                         name="setType"
                                         value={formData.setType}
                                         onChange={handleInputChange}
-                                        className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
+                                        className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-[#06095b]"
                                     >
                                         <option value="1 piece">1 piece</option>
                                         <option value="2 piece set">2 piece set</option>
@@ -517,7 +402,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                                     <label className="block text-sm font-medium mb-2">Main Image</label>
                                     <div
                                         onClick={() => mainImageInputRef.current?.click()}
-                                        className="border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-colors min-h-[150px] bg-secondary/30"
+                                        className="border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer hover:border-[#06095b] transition-colors min-h-[150px] bg-secondary/30"
                                     >
                                         {mainImagePreview ? (
                                             <div className="relative w-full h-40">
@@ -617,7 +502,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                                     <button
                                         type="button"
                                         onClick={() => additionalImagesInputRef.current?.click()}
-                                        className="w-full py-4 px-4 border-2 border-dashed border-primary rounded-lg hover:bg-primary/10 hover:border-primary transition-all flex items-center justify-center gap-3 text-primary font-semibold text-base"
+                                        className="w-full py-4 px-4 border-2 border-dashed border-[#06095b] rounded-lg hover:bg-[#06095b]/10 hover:border-[#06095b] transition-all flex items-center justify-center gap-3 text-[#06095b] font-semibold text-base"
                                     >
                                         <Plus size={22} />
                                         Add More Images (Click or Drag & Drop)
@@ -635,6 +520,8 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                             </div>
                         </div>
 
+
+
                         <div>
                             <label className="block text-sm font-medium mb-1">Description</label>
                             <textarea
@@ -643,7 +530,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                                 onChange={handleInputChange}
                                 required
                                 rows={4}
-                                className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
+                                className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-[#06095b]"
                                 placeholder="Detailed product description..."
                             />
                         </div>
@@ -655,7 +542,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                                 name="sizes"
                                 value={formData.sizes}
                                 onChange={handleInputChange}
-                                className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
+                                className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-[#06095b]"
                                 placeholder="XS, S, M, L, XL"
                             />
                         </div>
@@ -667,7 +554,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                                     name="isNew"
                                     checked={formData.isNew}
                                     onChange={handleCheckboxChange}
-                                    className="w-4 h-4 text-primary rounded border-border focus:ring-primary"
+                                    className="w-4 h-4 accent-[#06095b] rounded border-border"
                                 />
                                 <span className="text-sm font-medium">New Arrival</span>
                             </label>
@@ -678,7 +565,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                                     name="isBestseller"
                                     checked={formData.isBestseller}
                                     onChange={handleCheckboxChange}
-                                    className="w-4 h-4 text-primary rounded border-border focus:ring-primary"
+                                    className="w-4 h-4 accent-[#06095b] rounded border-border"
                                 />
                                 <span className="text-sm font-medium">Bestseller</span>
                             </label>
@@ -697,7 +584,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                     <button
                         onClick={handleSubmit}
                         disabled={loading}
-                        className="btn-primary px-8 py-2 disabled:opacity-50"
+                        className="px-8 py-2 bg-[#06095b] text-white rounded-lg hover:bg-[#06095b]/90 disabled:opacity-50 font-medium transition-colors"
                     >
                         {loading ? (product ? 'Updating...' : 'Creating...') : (product ? 'Update Product' : 'Create Product')}
                     </button>

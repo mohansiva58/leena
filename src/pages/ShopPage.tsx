@@ -47,6 +47,11 @@ export default function ShopPage() {
       result = result.filter((p) => p.isBestseller);
     }
 
+    // Apply category filter
+    if (categoryParam) {
+      result = result.filter((p) => p.category.toLowerCase() === categoryParam.toLowerCase());
+    }
+
     // Apply size filter
     if (selectedSize) {
       result = result.filter((p) => p.sizes.includes(selectedSize));
@@ -79,7 +84,7 @@ export default function ShopPage() {
     }
 
     return result;
-  }, [products, filterParam, search, selectedSize, sortBy]);
+  }, [products, filterParam, categoryParam, search, selectedSize, sortBy]);
 
   const clearFilters = () => {
     setSelectedSize(null);
@@ -116,7 +121,9 @@ export default function ShopPage() {
                     ? 'The New Collection'
                     : filterParam === 'bestseller'
                       ? 'Our Bestsellers'
-                      : 'Shop All'}
+                      : categoryParam
+                        ? categoryParam
+                        : 'Shop All'}
               </h1>
               {/* <div className="w-20 h-1 bg-primary mx-auto mb-6"></div> */}
 

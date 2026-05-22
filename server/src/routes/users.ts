@@ -5,6 +5,7 @@ import {
     addAddress,
     updateAddress,
     deleteAddress,
+    notifyLogin,
 } from '../controllers/userController';
 
 const router = express.Router();
@@ -13,6 +14,7 @@ const router = express.Router();
 router.use(authenticateUser);
 
 router.get('/me', getCurrentUser);
+router.post('/login-notify', notifyLogin);
 router.post('/addresses', addAddress);
 router.put('/addresses/:addressId', updateAddress);
 router.delete('/addresses/:addressId', deleteAddress);

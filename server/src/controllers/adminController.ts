@@ -4,6 +4,9 @@ import Order from '../models/Order';
 import User from '../models/User';
 import Product from '../models/Product';
 import { writeAudit } from '../utils/auditLog';
+import { sendOrderStatusUpdateEmail } from '../config/email';
+import { uploadToCloudinary } from '../config/cloudinary';
+import { validateImageBuffer } from '../utils/itemHelpers';
 
 const ORDER_TRANSITIONS: Record<string, string[]> = {
     pending: ['confirmed', 'processing', 'cancelled'],
@@ -119,6 +122,19 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response): Promis
         }
         await order.save();
 
+        try {
+            await sendOrderStatusUpdateEmail({
+                customerName: order.shippingAddress.fullName,
+                customerEmail: order.shippingAddress.email || order.userEmail,
+                orderId: order.orderId,
+                orderStatus: order.orderStatus,
+                estimatedDelivery: order.estimatedDelivery,
+                trackingNumber: order.trackingNumber,
+            });
+        } catch (emailErr) {
+            console.error('Failed to send status update email:', emailErr);
+        }
+
         await writeAudit(req.user!.uid, req.user!.email, 'order_status_update', 'order', orderId, {
             from: current,
             to: status,
@@ -128,5 +144,31 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response): Promis
     } catch (error) {
         console.error('Update order status error:', error);
         res.status(500).json({ error: 'Failed to update order status' });
+    }
+};
+
+export const uploadImage = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        if (!req.file) {
+            res.status(400).json({ error: 'No image file provided' });
+            return;
+        }
+
+        const buf = req.file.buffer;
+        if (!validateImageBuffer(buf)) {
+            res.status(400).json({ error: 'Invalid image file format. Supported: JPEG, PNG, WEBP, GIF, BMP' });
+            return;
+        }
+
+        const category = typeof req.body.category === 'string' ? req.body.category : 'admin_uploads';
+        const uploaded = await uploadToCloudinary(buf, category);
+
+        res.json({
+            url: uploaded.url,
+            publicId: uploaded.publicId,
+        });
+    } catch (error) {
+        console.error('Image upload endpoint error:', error);
+        res.status(500).json({ error: 'Failed to upload image' });
     }
 };

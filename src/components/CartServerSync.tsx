@@ -10,6 +10,7 @@ function serverLineToProduct(line: {
   price: number;
   image: string;
   variantImage?: string;
+  color?: string;
 }): Product {
   return {
     productId: line.productId,
@@ -50,18 +51,18 @@ export function CartServerSync() {
         if (serverCart.items?.length) {
           useCartStore.getState().clearCart();
           for (const it of serverCart.items) {
-            useCartStore.getState().addItem(serverLineToProduct(it), it.size, it.quantity);
+            useCartStore.getState().addItem(serverLineToProduct(it), it.size, it.quantity, it.variantImage || it.image, it.color);
           }
         } else if (localItems.length) {
           for (const row of localItems) {
             const pid = getProductId(row.product);
-            await cartService.addToCart(pid, row.size, row.quantity, getCartItemImage(row));
+            await cartService.addToCart(pid, row.size, row.quantity, getCartItemImage(row), row.color);
           }
           const refreshed = await cartService.getCart();
           if (refreshed.items?.length) {
             useCartStore.getState().clearCart();
             for (const it of refreshed.items) {
-              useCartStore.getState().addItem(serverLineToProduct(it), it.size, it.quantity);
+              useCartStore.getState().addItem(serverLineToProduct(it), it.size, it.quantity, it.variantImage || it.image, it.color);
             }
           }
         }

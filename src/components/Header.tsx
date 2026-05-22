@@ -153,7 +153,7 @@ export function Header() {
                 <img
                   src={logo}
                   alt="Leena"
-                  className="h-14 w-14 rounded-full object-cover border border-blue-200/50 shadow-sm transition-transform duration-300 hover:scale-135 scale-125"
+                  className="h-12 w-12 rounded-full object-cover border border-blue-200/50 shadow-sm transition-transform duration-300 hover:scale-135 scale-125"
                 />
               </Link>
             </div>

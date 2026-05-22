@@ -4,6 +4,7 @@ import User from '../models/User';
 import { IAddress } from '../models/User';
 import { cacheDel } from '../utils/cache';
 import { isAdminEmail } from '../utils/admin';
+import { sendLoginNotificationEmail } from '../config/email';
 
 const authCacheKey = (uid: string) => `auth:user:${uid}`;
 type AddressWithId = IAddress & { _id?: { toString(): string } };
@@ -156,10 +157,31 @@ export const deleteAddress = async (req: AuthRequest, res: Response): Promise<vo
 
         await user.save();
         await cacheDel(authCacheKey(userId));
-
         res.json(user);
     } catch (error) {
         console.error('Delete address error:', error);
         res.status(500).json({ error: 'Failed to delete address' });
+    }
+};
+
+export const notifyLogin = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.uid;
+        if (!userId) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        const email = req.user?.email || '';
+        const displayName = req.user?.displayName || email.split('@')[0] || 'User';
+
+        if (email) {
+            await sendLoginNotificationEmail(email, displayName);
+        }
+
+        res.json({ success: true, message: 'Login notification sent' });
+    } catch (error) {
+        console.error('Notify login error:', error);
+        res.status(500).json({ error: 'Failed to send login notification' });
     }
 };

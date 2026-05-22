@@ -210,6 +210,7 @@ export default function CheckoutPage() {
             image: getCartItemImage(item),
             variantImage: getCartItemImage(item),
             size: item.size,
+            color: item.color,
             quantity: item.quantity,
           };
         }),

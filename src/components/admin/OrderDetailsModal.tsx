@@ -7,10 +7,11 @@ interface OrderItem {
   productId: string;
   name: string;
   price: number;
-  image: string;
+  image?: string;
   size: string;
   quantity: number;
   variantImage?: string;
+  color?: string;
 }
 
 interface ShippingAddress {
@@ -194,6 +195,7 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                           <p className="font-semibold text-foreground mb-1">{item.name}</p>
                           <div className="text-sm text-muted-foreground space-y-1">
                             <p>Size: <span className="font-medium text-foreground">{item.size}</span></p>
+                            {item.color && <p>Color: <span className="font-medium text-foreground">{item.color}</span></p>}
                             <p>Qty: <span className="font-medium text-foreground">{item.quantity}</span></p>
                             <p>Price: <span className="font-medium text-foreground">₹{item.price.toLocaleString()}</span></p>
                           </div>
@@ -403,7 +405,10 @@ function PrintContent({ order, printMode }: PrintContentProps) {
               <tbody>
                 {order.items.map((item, idx) => (
                   <tr key={idx} style={{ borderBottom: '1px solid #ddd' }}>
-                    <td style={{ padding: '5pt' }}>{item.name}</td>
+                    <td style={{ padding: '5pt' }}>
+                      <div>{item.name}</div>
+                      {item.color && <div style={{ fontSize: '8pt', color: '#666' }}>Color: {item.color}</div>}
+                    </td>
                     <td style={{ padding: '5pt', textAlign: 'center' }}>{item.size}</td>
                     <td style={{ padding: '5pt', textAlign: 'center' }}>{item.quantity}</td>
                     <td style={{ padding: '5pt', textAlign: 'right' }}>₹{item.price.toLocaleString()}</td>

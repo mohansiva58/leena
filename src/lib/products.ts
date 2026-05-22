@@ -5,13 +5,17 @@ import product4 from '@/assets/product-4.jpg';
 import product5 from '@/assets/product-5.jpg';
 import product6 from '@/assets/product-6.jpg';
 
+export interface ColorImage {
+  _id?: string;
+  url: string;
+  publicId?: string;
+}
+
 export interface ColorVariant {
   colorName: string;
   colorCode?: string;
-  image?: string;
-  images?: string[];
-  cloudinaryId?: string;
-  cloudinaryIds?: string[];
+  image?: ColorImage;
+  images?: ColorImage[];
   stock?: number;
 }
 
@@ -151,7 +155,23 @@ export const products: Product[] = [
   },
 ];
 
-export const categories = ['All', 'Sarees', 'Lehengas', 'Anarkali', 'Sharara', 'Khada Dupatta', 'Lancha', 'Salwar Kameez', 'Gharara'];
+export const categories = [
+  'All',
+  'Sarees',
+  'Lehengas',
+  'Anarkali',
+  'Sharara',
+  'Khada Dupatta',
+  'Lancha',
+  'Salwar Kameez',
+  'Gharara',
+  'Kurtas',
+  "Dinu's Collections",
+  'Twine Cut Work',
+  'Dupattas',
+  'Blouses',
+  'Bottom Wears'
+];
 
 export const priceRanges = [
   { label: 'Under ₹4,000', min: 0, max: 4000 },

@@ -4,7 +4,7 @@ import Order from '../models/Order';
 import Cart from '../models/Cart';
 import PaymentClaim from '../models/PaymentClaim';
 import { generateOrderId, calculateShipping, validatePhone, validatePincode } from '../utils/helpers';
-import { sendOrderConfirmationEmail } from '../config/email';
+import { sendOrderConfirmationEmail, sendOrderStatusUpdateEmail } from '../config/email';
 import { cacheDel } from '../utils/cache';
 import {
     resolveOrderLines,
@@ -117,7 +117,7 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
             return;
         }
 
-        const shipping = calculateShipping(subtotal);
+        const shipping = calculateShipping(subtotal, shippingAddress.state);
         const total = subtotal + shipping;
         const totalPaise = Math.round(total * 100);
 
@@ -232,6 +232,7 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
                     size: l.size,
                     quantity: l.quantity,
                     variantImage: l.variantImage,
+                    color: l.color,
                 })),
                 shippingAddress,
                 subtotal,
@@ -262,6 +263,7 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
                     items: order.items.map((item) => ({
                         name: item.name,
                         size: item.size,
+                        color: item.color,
                         quantity: item.quantity,
                         price: item.price * item.quantity,
                     })),
@@ -422,6 +424,19 @@ export const cancelOrder = async (req: AuthRequest, res: Response): Promise<void
         order.cancelledAt = new Date();
         order.cancellationReason = reason;
         await order.save();
+
+        try {
+            await sendOrderStatusUpdateEmail({
+                customerName: order.shippingAddress.fullName,
+                customerEmail: order.shippingAddress.email || order.userEmail,
+                orderId: order.orderId,
+                orderStatus: order.orderStatus,
+                estimatedDelivery: order.estimatedDelivery,
+                trackingNumber: order.trackingNumber,
+            });
+        } catch (emailErr) {
+            console.error('Failed to send cancellation status update email:', emailErr);
+        }
 
         res.json({
             success: true,

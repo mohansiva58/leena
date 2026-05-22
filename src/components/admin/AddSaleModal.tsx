@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { X, Upload, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { saleService, Sale, SaleMode } from '@/services/saleService';
+import { categories } from '@/lib/products';
 
 interface AddSaleModalProps {
     isOpen: boolean;
@@ -330,10 +331,9 @@ export function AddSaleModal({ isOpen, onClose, onSuccess, sale }: AddSaleModalP
                                         className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
                                     >
                                         <option value="">Select Category</option>
-                                        <option value="Sarees">Sarees</option>
-                                        <option value="Lehengas">Lehengas</option>
-                                        <option value="Salwar Kameez">Salwar Kameez</option>
-                                        <option value="Kurtas">Kurtas</option>
+                                        {categories.filter(c => c !== 'All').map(c => (
+                                            <option key={c} value={c}>{c}</option>
+                                        ))}
                                     </select>
                                 </div>
 

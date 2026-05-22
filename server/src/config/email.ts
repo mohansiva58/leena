@@ -46,6 +46,7 @@ interface OrderEmailData {
   items: Array<{
     name: string;
     size: string;
+    color?: string;
     quantity: number;
     price: number;
   }>;
@@ -72,7 +73,10 @@ export const sendOrderConfirmationEmail = async (data: OrderEmailData): Promise<
         (item) => `
       <tr>
         <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.name}</td>
-        <td style="padding: 10px; border-bottom: 1px solid #eee;">Size: ${item.size}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #eee;">
+          Size: ${item.size}
+          ${item.color ? `<br/><span style="color: #666; font-size: 13px;">Color: ${item.color}</span>` : ''}
+        </td>
         <td style="padding: 10px; border-bottom: 1px solid #eee;">×${item.quantity}</td>
         <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">₹${item.price.toLocaleString()}</td>
       </tr>
@@ -172,4 +176,145 @@ export const sendOrderConfirmationEmail = async (data: OrderEmailData): Promise<
   }
 };
 
-export { OrderEmailData };
+export const sendLoginNotificationEmail = async (email: string, displayName?: string): Promise<void> => {
+  try {
+    const emailTransporter = getEmailTransporter();
+    const mailOptions = {
+      from: `"Leena" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Security Alert: New Sign-in Detected',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>New Sign-in Detected</title>
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: #1a1a1a; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">New Sign-in Detected 🔑</h1>
+          </div>
+          <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #eee; border-top: none;">
+            <p style="font-size: 16px; margin-bottom: 20px;">Hello ${displayName || 'Valued Customer'},</p>
+            <p style="font-size: 16px; margin-bottom: 20px;">A new sign-in was detected for your Leena account at ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}.</p>
+            <p style="font-size: 16px; margin-bottom: 20px;">If this was you, you can safely ignore this email. If you did not log in, please secure your account immediately or contact support.</p>
+            <p style="font-size: 16px; margin-top: 30px;">Best regards,<br>Leena Team</p>
+          </div>
+          <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
+            <p>© ${new Date().getFullYear()} Leena. All rights reserved.</p>
+          </div>
+        </body>
+        </html>
+      `,
+    };
+    await emailTransporter.sendMail(mailOptions);
+    console.log(`✅ Login notification email sent to ${email}`);
+  } catch (error) {
+    console.error('❌ Failed to send login notification email:', error);
+  }
+};
+
+interface OrderStatusEmailData {
+  customerName: string;
+  customerEmail: string;
+  orderId: string;
+  orderStatus: string;
+  estimatedDelivery?: Date;
+  trackingNumber?: string;
+}
+
+export const sendOrderStatusUpdateEmail = async (data: OrderStatusEmailData): Promise<void> => {
+  try {
+    const emailTransporter = getEmailTransporter();
+    
+    let statusText = data.orderStatus.toUpperCase();
+    let statusIcon = '📦';
+    let statusColor = '#667eea';
+    
+    switch (data.orderStatus) {
+      case 'confirmed':
+        statusText = 'CONFIRMED';
+        statusIcon = '✅';
+        statusColor = '#28a745';
+        break;
+      case 'processing':
+        statusText = 'PROCESSING';
+        statusIcon = '⚙️';
+        statusColor = '#17a2b8';
+        break;
+      case 'shipped':
+        statusText = 'SHIPPED';
+        statusIcon = '🚚';
+        statusColor = '#fd7e14';
+        break;
+      case 'delivered':
+        statusText = 'DELIVERED';
+        statusIcon = '🎉';
+        statusColor = '#28a745';
+        break;
+      case 'cancelled':
+        statusText = 'CANCELLED';
+        statusIcon = '❌';
+        statusColor = '#dc3545';
+        break;
+    }
+
+    let extraDetails = '';
+    if (data.trackingNumber) {
+      extraDetails += `<p style="margin: 5px 0;"><strong>Tracking Number:</strong> ${data.trackingNumber}</p>`;
+    }
+    if (data.estimatedDelivery) {
+      extraDetails += `<p style="margin: 5px 0;"><strong>Estimated Delivery:</strong> ${new Date(data.estimatedDelivery).toLocaleDateString('en-IN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })}</p>`;
+    }
+
+    const mailOptions = {
+      from: `"Leena" <${process.env.EMAIL_USER}>`,
+      to: data.customerEmail,
+      subject: `Order Status Update: ${statusText} - ${data.orderId}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Order Status Update</title>
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: ${statusColor}; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 26px;">Order Status Update ${statusIcon}</h1>
+          </div>
+          <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #eee; border-top: none;">
+            <p style="font-size: 16px; margin-bottom: 20px;">Dear ${data.customerName},</p>
+            <p style="font-size: 16px; margin-bottom: 20px;">The status of your order <strong>${data.orderId}</strong> has been updated to <strong>${statusText}</strong>.</p>
+            
+            ${extraDetails ? `
+            <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${statusColor};">
+              <h2 style="color: ${statusColor}; margin-top: 0; font-size: 18px;">Delivery Details</h2>
+              ${extraDetails}
+            </div>
+            ` : ''}
+
+            <p style="font-size: 14px; color: #666; margin-top: 30px;">You can track the status of your order anytime in the Orders tab of your account.</p>
+            <p style="font-size: 16px; margin-top: 30px;">Thank you for shopping with Leena!</p>
+            <p style="font-size: 14px; color: #666;">Best regards,<br>Leena Team</p>
+          </div>
+          <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
+            <p>© ${new Date().getFullYear()} Leena. All rights reserved.</p>
+          </div>
+        </body>
+        </html>
+      `,
+    };
+    await emailTransporter.sendMail(mailOptions);
+    console.log(`✅ Order status update email sent to ${data.customerEmail} (${statusText})`);
+  } catch (error) {
+    console.error('❌ Failed to send order status update email:', error);
+  }
+};
+
+export { OrderEmailData, OrderStatusEmailData };

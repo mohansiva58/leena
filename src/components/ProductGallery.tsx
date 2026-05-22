@@ -5,10 +5,11 @@ import { ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
 interface ProductGalleryProps {
   images: string[];
   productName: string;
+  selectedImage?: string;
   onSelectedImageChange?: (image: string, index: number) => void;
 }
 
-export function ProductGallery({ images, productName, onSelectedImageChange }: ProductGalleryProps) {
+export function ProductGallery({ images, productName, selectedImage, onSelectedImageChange }: ProductGalleryProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isZoomed, setIsZoomed] = useState(false);
   const [imageErrors, setImageErrors] = useState<Set<number>>(new Set());
@@ -20,7 +21,19 @@ export function ProductGallery({ images, productName, onSelectedImageChange }: P
       totalImages: images.length,
       images: images.map(img => img.substring(0, 50) + '...')
     });
-  }, [images, productName]);
+  }, [images.join(','), productName]);
+
+  // Sync selected index when selectedImage or images change
+  useEffect(() => {
+    if (selectedImage) {
+      const idx = images.indexOf(selectedImage);
+      if (idx !== -1) {
+        setSelectedIndex(idx);
+        return;
+      }
+    }
+    setSelectedIndex(0);
+  }, [selectedImage, images.join(',')]);
 
   const handleImageError = (index: number) => {
     setImageErrors(prev => new Set(prev).add(index));

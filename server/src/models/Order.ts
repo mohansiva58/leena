@@ -8,6 +8,7 @@ export interface IOrderItem {
     size: string;
     quantity: number;
     variantImage?: string;
+    color?: string;
 }
 
 export interface IShippingAddress {
@@ -53,6 +54,7 @@ const OrderItemSchema: Schema = new Schema({
     size: { type: String, required: true },
     quantity: { type: Number, required: true, min: 1 },
     variantImage: { type: String },
+    color: { type: String },
 });
 
 const ShippingAddressSchema: Schema = new Schema({

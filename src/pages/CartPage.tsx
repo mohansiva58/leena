@@ -11,7 +11,7 @@ export default function CartPage() {
   const [promoCode, setPromoCode] = useState('');
 
   const subtotal = getTotalPrice();
-  const shipping = subtotal > 2000 ? 0 : 99;
+  const shipping = subtotal >= 2000 ? 0 : 90;
   const total = subtotal + shipping;
 
   if (items.length === 0) {
@@ -126,11 +126,7 @@ export default function CartPage() {
                                   Color: {item.color}
                                 </p>
                               )}
-                              {item.product.weight && (
-                                <p className="text-xs text-orange-600 font-medium mt-1">
-                                  ⚖️ {item.product.weight} kg × {item.quantity} = {(item.product.weight * item.quantity).toFixed(2)} kg
-                                </p>
-                              )}
+
                             </div>
                             <motion.button
                               whileHover={{ scale: 1.05, backgroundColor: 'rgb(239, 68, 68)' }}

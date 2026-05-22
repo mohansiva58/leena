@@ -52,7 +52,7 @@ function createApp(): Application {
             'http://localhost:8080',
             'http://localhost:8081',
             'http://localhost:8082',
-            'https://leena-mu.vercel.app/',
+            'https://leena-mu.vercel.app',
             'https://www.leenabyalekhya.in',
             ...parseOrigins(process.env.FRONTEND_URL, process.env.CORS_ORIGIN),
         ];

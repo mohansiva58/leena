@@ -34,12 +34,15 @@ jobs:
 
       - name: Install server deps
         working-directory: server
-        run: npm cache clean --force && npm ci --legacy-peer-deps --verbose
+        run: npm cache clean --force && npm install --legacy-peer-deps --verbose || (echo "Install failed, showing error details:" && npm list && exit 1)
 
       - name: Check server npm issues
         if: failure()
         working-directory: server
-        run: npm list --all
+        run: |
+          echo "=== npm cache ===" && npm cache verify
+          echo "=== package.json ===" && cat package.json
+          echo "=== package-lock.json (first 50 lines) ===" && head -50 package-lock.json
 
       - name: Typecheck server
         working-directory: server

@@ -43,7 +43,7 @@ function createApp(): Application {
 
     // CORS - MUST BE BEFORE OTHER MIDDLEWARE
     app.use((req, res, next) => {
-        const origin = req.headers.origin;
+        const origin = req.headers.origin || '';
 
         const allowedOrigins = [
             'http://localhost:5173',
@@ -57,15 +57,16 @@ function createApp(): Application {
             ...parseOrigins(process.env.FRONTEND_URL, process.env.CORS_ORIGIN),
         ];
 
-        if (origin && allowedOrigins.includes(origin)) {
+        // Check if origin is allowed
+        const isAllowed = allowedOrigins.includes(origin);
+
+        // Set CORS headers for allowed origins
+        if (isAllowed) {
             res.setHeader('Access-Control-Allow-Origin', origin);
             res.setHeader('Vary', 'Origin');
-        } else if (process.env.NODE_ENV !== 'production') {
-            res.setHeader('Access-Control-Allow-Origin', 'http://localhost:8080');
-            res.setHeader('Vary', 'Origin');
+            res.setHeader('Access-Control-Allow-Credentials', 'true');
         }
 
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
         res.setHeader('Access-Control-Expose-Headers', 'set-cookie');

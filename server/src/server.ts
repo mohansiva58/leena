@@ -153,6 +153,15 @@ function createApp(): Application {
     app.use('/api/admin', adminRoutes);
     app.use('/api/sales', salesRoutes);
 
+    // Routes without /api prefix (for legacy/direct access)
+    app.use('/products', productRoutes);
+    app.use('/cart', cartRoutes);
+    app.use('/orders', orderRoutes);
+    app.use('/payment', paymentRoutes);
+    app.use('/users', userRoutes);
+    app.use('/admin', adminRoutes);
+    app.use('/sales', salesRoutes);
+
     // Error handling
     app.use(notFoundHandler);
     app.use(errorHandler);

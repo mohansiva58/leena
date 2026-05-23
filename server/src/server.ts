@@ -144,16 +144,8 @@ function createApp(): Application {
         });
     });
 
-    // API Routes
-    app.use('/api/products', productRoutes);
-    app.use('/api/cart', cartRoutes);
-    app.use('/api/orders', orderRoutes);
-    app.use('/api/payment', paymentRoutes);
-    app.use('/api/users', userRoutes);
-    app.use('/api/admin', adminRoutes);
-    app.use('/api/sales', salesRoutes);
-
-    // Routes without /api prefix (for legacy/direct access)
+    // ============ LEGACY ROUTES (without /api prefix) ============
+    // Register BEFORE /api routes to ensure they match first
     app.use('/products', productRoutes);
     app.use('/cart', cartRoutes);
     app.use('/orders', orderRoutes);
@@ -161,6 +153,15 @@ function createApp(): Application {
     app.use('/users', userRoutes);
     app.use('/admin', adminRoutes);
     app.use('/sales', salesRoutes);
+
+    // ============ API ROUTES (with /api prefix) ============
+    app.use('/api/products', productRoutes);
+    app.use('/api/cart', cartRoutes);
+    app.use('/api/orders', orderRoutes);
+    app.use('/api/payment', paymentRoutes);
+    app.use('/api/users', userRoutes);
+    app.use('/api/admin', adminRoutes);
+    app.use('/api/sales', salesRoutes);
 
     // Error handling
     app.use(notFoundHandler);

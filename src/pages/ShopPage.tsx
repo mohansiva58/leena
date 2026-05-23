@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SlidersHorizontal, X, ChevronDown } from 'lucide-react';
@@ -9,10 +9,16 @@ import { sizes, Product } from '@/lib/products';
 import { productService } from '@/services/productService';
 
 export default function ShopPage() {
+  const PAGE_SIZE = 12;
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -22,69 +28,113 @@ export default function ShopPage() {
   const categoryParam = searchParams.get('category');
   const search = searchParams.get('search');
 
+  const normalizeProductsResponse = (data: unknown): Product[] => {
+    if (Array.isArray(data)) {
+      return data as Product[];
+    }
+
+    if (data && typeof data === 'object') {
+      const response = data as { items?: unknown };
+      if (Array.isArray(response.items)) {
+        return response.items as Product[];
+      }
+    }
+
+    return [];
+  };
+
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchProducts = async (nextPage = 1, append = false) => {
       try {
-        const data = await productService.getAllProducts();
-        console.log('Fetched products:', data);
-        setProducts(data);
+        if (append) {
+          setLoadingMore(true);
+        } else {
+          setLoading(true);
+          setError(null);
+        }
+
+        const data = await productService.getPagedProducts({
+          page: nextPage,
+          limit: PAGE_SIZE,
+          category: categoryParam || undefined,
+          search: search || undefined,
+          sort:
+            sortBy === 'price-low'
+              ? 'price-asc'
+              : sortBy === 'price-high'
+                ? 'price-desc'
+                : sortBy === 'rating'
+                  ? 'rating'
+                  : undefined,
+          size: selectedSize || undefined,
+          filter: filterParam === 'new' ? 'new' : filterParam === 'bestseller' ? 'bestseller' : undefined,
+        });
+
+        console.log('Fetched paged products:', data);
+        const items = normalizeProductsResponse(data);
+        const total = data && typeof data === 'object' && 'total' in data ? Number((data as { total?: number }).total || items.length) : items.length;
+        const hasMoreValue = data && typeof data === 'object' && 'hasMore' in data ? Boolean((data as { hasMore?: boolean }).hasMore) : false;
+        const pageValue = data && typeof data === 'object' && 'page' in data ? Number((data as { page?: number }).page || nextPage) : nextPage;
+
+        setTotalProducts(total);
+        setHasMore(hasMoreValue);
+        setPage(pageValue);
+        setProducts((current) => (append ? [...current, ...items] : items));
       } catch (error) {
         console.error('Failed to fetch products:', error);
+        setError('Failed to load products. Please try again.');
       } finally {
         setLoading(false);
+        setLoadingMore(false);
       }
     };
-    fetchProducts();
-  }, []);
+    setProducts([]);
+    setPage(1);
+    setHasMore(true);
+    fetchProducts(1, false);
+  }, [categoryParam, search, sortBy, selectedSize, filterParam]);
 
-  const filteredProducts = useMemo(() => {
-    let result = [...products];
-
-    // Apply filter param
-    if (filterParam === 'new') {
-      result = result.filter((p) => p.isNew || p.newArrival);
-    } else if (filterParam === 'bestseller') {
-      result = result.filter((p) => p.isBestseller);
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) {
+      return;
     }
 
-    // Apply category filter
-    if (categoryParam) {
-      result = result.filter((p) => p.category.toLowerCase() === categoryParam.toLowerCase());
-    }
+    const nextPage = page + 1;
+    try {
+      setLoadingMore(true);
+      const data = await productService.getPagedProducts({
+        page: nextPage,
+        limit: PAGE_SIZE,
+        category: categoryParam || undefined,
+        search: search || undefined,
+        sort:
+          sortBy === 'price-low'
+            ? 'price-asc'
+            : sortBy === 'price-high'
+              ? 'price-desc'
+              : sortBy === 'rating'
+                ? 'rating'
+                : undefined,
+        size: selectedSize || undefined,
+        filter: filterParam === 'new' ? 'new' : filterParam === 'bestseller' ? 'bestseller' : undefined,
+      });
 
-    // Apply size filter
-    if (selectedSize) {
-      result = result.filter((p) => p.sizes.includes(selectedSize));
-    }
+      const items = normalizeProductsResponse(data);
+      const total = data && typeof data === 'object' && 'total' in data ? Number((data as { total?: number }).total || items.length) : items.length;
+      const hasMoreValue = data && typeof data === 'object' && 'hasMore' in data ? Boolean((data as { hasMore?: boolean }).hasMore) : false;
+      const pageValue = data && typeof data === 'object' && 'page' in data ? Number((data as { page?: number }).page || nextPage) : nextPage;
 
-    // Apply search filter
-    if (search) {
-      const query = search.toLowerCase();
-      result = result.filter(
-        (p) =>
-          p.name.toLowerCase().includes(query) ||
-          p.category.toLowerCase().includes(query)
-      );
+      setProducts((current) => [...current, ...items]);
+      setHasMore(hasMoreValue);
+      setPage(pageValue);
+      setTotalProducts(total);
+    } catch (error) {
+      console.error('Failed to load more products:', error);
+      setError('Failed to load more products. Please try again.');
+    } finally {
+      setLoadingMore(false);
     }
-
-    // Apply sorting
-    switch (sortBy) {
-      case 'price-low':
-        result.sort((a, b) => a.price - b.price);
-        break;
-      case 'price-high':
-        result.sort((a, b) => b.price - a.price);
-        break;
-      case 'rating':
-        result.sort((a, b) => b.rating - a.rating);
-        break;
-      default:
-        // featured - keep original order
-        break;
-    }
-
-    return result;
-  }, [products, filterParam, categoryParam, search, selectedSize, sortBy]);
+  };
 
   const clearFilters = () => {
     setSelectedSize(null);
@@ -94,6 +144,7 @@ export default function ShopPage() {
   };
 
   const activeFiltersCount = selectedSize ? 1 : 0;
+  const visibleProducts = Array.isArray(products) ? products : [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -160,7 +211,8 @@ export default function ShopPage() {
           <div className="hidden lg:flex items-center justify-end gap-4 mb-10 pb-6 border-b border-border/50">
             <div className="flex items-center gap-6">
               <p className="text-sm text-muted-foreground">
-                Showing <span className="text-foreground font-semibold">{filteredProducts.length}</span> products
+                Showing <span className="text-foreground font-semibold">{visibleProducts.length}</span>
+                {totalProducts > 0 ? ` of ${totalProducts}` : ''} products
               </p>
               <div className="relative min-w-[200px]">
                 <select
@@ -285,12 +337,41 @@ export default function ShopPage() {
                     <div key={i} className="aspect-square bg-secondary/30 rounded-[2rem] animate-pulse" />
                   ))}
                 </div>
-              ) : filteredProducts.length > 0 ? (
+              ) : error ? (
+                <div className="flex flex-col items-center justify-center py-24 px-4 bg-secondary/20 rounded-sm border border-border/50">
+                  <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center">
+                    <X size={40} className="mx-auto mb-4 text-muted-foreground/30" />
+                    <h3 className="font-serif text-2xl font-semibold mb-2">Unable to load products</h3>
+                    <p className="text-muted-foreground mb-8 max-w-xs mx-auto">{error}</p>
+                    <button
+                      onClick={() => window.location.reload()}
+                      className="btn-primary px-8 py-3 rounded-full"
+                    >
+                      Retry
+                    </button>
+                  </motion.div>
+                </div>
+              ) : visibleProducts.length > 0 ? (
+                <>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:gap-x-6 sm:gap-y-12 lg:grid-cols-3">
-                  {filteredProducts.map((product, index) => (
+                  {visibleProducts.map((product, index) => (
                     <ProductCard key={product.productId || product.id || product._id} product={product} index={index} />
                   ))}
                 </div>
+                <div className="mt-10 flex justify-center">
+                  {hasMore ? (
+                    <button
+                      onClick={loadMore}
+                      disabled={loadingMore}
+                      className="btn-primary px-8 py-3 rounded-full disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {loadingMore ? 'Loading more...' : 'Load More Products'}
+                    </button>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">You have reached the end of the catalog.</p>
+                  )}
+                </div>
+                </>
               ) : (
                 <div className="flex flex-col items-center justify-center py-24 px-4 bg-secondary/20 rounded-sm border border-border/50">
                   <motion.div

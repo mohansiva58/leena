@@ -9,6 +9,21 @@ export interface ProductFilters {
     sort?: 'price-asc' | 'price-desc' | 'rating' | 'popular';
 }
 
+export interface PagedProductFilters extends ProductFilters {
+    size?: string | null;
+    filter?: 'new' | 'bestseller' | null;
+    page: number;
+    limit: number;
+}
+
+export interface PagedProductResponse {
+    items: Product[];
+    total: number;
+    page: number;
+    limit: number;
+    hasMore: boolean;
+}
+
 export const productService = {
     getAllProducts: async (filters?: ProductFilters): Promise<Product[]> => {
         const params = new URLSearchParams();
@@ -26,6 +41,23 @@ export const productService = {
                 console.warn('Product missing image:', p.name);
             }
         });
+        return response.data;
+    },
+
+    getPagedProducts: async (filters: PagedProductFilters): Promise<PagedProductResponse> => {
+        const params = new URLSearchParams();
+        if (filters.category) params.append('category', filters.category);
+        if (filters.minPrice) params.append('minPrice', filters.minPrice.toString());
+        if (filters.maxPrice) params.append('maxPrice', filters.maxPrice.toString());
+        if (filters.search) params.append('search', filters.search);
+        if (filters.sort) params.append('sort', filters.sort);
+        if (filters.size) params.append('size', filters.size);
+        if (filters.filter) params.append('filter', filters.filter);
+        params.append('page', filters.page.toString());
+        params.append('limit', filters.limit.toString());
+
+        const response = await api.get(`/products?${params.toString()}`);
+        console.log('Fetched paged products:', response.data);
         return response.data;
     },
 

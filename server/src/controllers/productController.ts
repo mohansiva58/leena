@@ -163,10 +163,13 @@ export const bulkCreateProducts = async (req: AuthRequest, res: Response): Promi
 
 export const getAllProducts = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { category, minPrice, maxPrice, search, sort } = req.query;
+        const { category, minPrice, maxPrice, search, sort, page, limit, size, filter } = req.query;
         const query: Record<string, unknown> = {};
 
         if (category && category !== 'All') query.category = category;
+        if (size) query.sizes = size;
+        if (filter === 'new') query.newArrival = true;
+        if (filter === 'bestseller') query.isBestseller = true;
         if (minPrice || maxPrice) {
             const priceQuery: Record<string, number> = {};
             if (minPrice) priceQuery.$gte = Number(minPrice);
@@ -175,9 +178,14 @@ export const getAllProducts = async (req: Request, res: Response): Promise<void>
         }
         if (search) query.$text = { $search: search as string };
 
+        const wantsPagination = typeof page !== 'undefined' || typeof limit !== 'undefined';
+        const pageNumber = Math.max(1, Number(page || 1));
+        const pageSize = Math.max(1, Math.min(24, Number(limit || 12)));
+
         // Try cache
         const isUnfiltered = Object.keys(query).length === 0;
         let cacheKey = `products:${JSON.stringify(query)}:${sort || 'default'}`;
+        if (wantsPagination) cacheKey = `${cacheKey}:page=${pageNumber}:limit=${pageSize}`;
         if (isUnfiltered && !sort) cacheKey = 'products:recent';
         if (isUnfiltered && sort === 'popular') cacheKey = 'products:popular';
 
@@ -190,7 +198,26 @@ export const getAllProducts = async (req: Request, res: Response): Promise<void>
         if (sort === 'rating') sortOption = { rating: -1 };
         if (sort === 'popular') sortOption = { reviews: -1 };
 
-        const products = await Product.find(query).sort(sortOption).lean(); // .lean() = faster, no Mongoose overhead
+        const baseQuery = Product.find(query).sort(sortOption);
+        const productsQuery = wantsPagination
+            ? baseQuery.skip((pageNumber - 1) * pageSize).limit(pageSize)
+            : baseQuery;
+
+        const products = await productsQuery.lean(); // .lean() = faster, no Mongoose overhead
+
+        if (wantsPagination) {
+            const total = await Product.countDocuments(query);
+            const payload = {
+                items: products,
+                total,
+                page: pageNumber,
+                limit: pageSize,
+                hasMore: pageNumber * pageSize < total,
+            };
+            await cacheSet(cacheKey, payload, CACHE_TTL.PRODUCTS);
+            res.json(payload);
+            return;
+        }
 
         const ttl = cacheKey === 'products:recent' ? CACHE_TTL.RECENT : cacheKey === 'products:popular' ? CACHE_TTL.FREQUENT : CACHE_TTL.PRODUCTS;
         await cacheSet(cacheKey, products, ttl);

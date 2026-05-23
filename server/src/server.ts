@@ -1,4 +1,5 @@
 import express, { Application, Request, Response, NextFunction } from 'express';
+import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
@@ -42,42 +43,24 @@ function createApp(): Application {
     const app: Application = express();
 
     // CORS - MUST BE BEFORE OTHER MIDDLEWARE
-    app.use((req, res, next) => {
-        const origin = req.headers.origin || '';
-
-        const allowedOrigins = [
-            'http://localhost:5173',
-            'http://localhost:5174',
-            'http://localhost:3000',
-            'http://localhost:8080',
-            'http://localhost:8081',
-            'http://localhost:8082',
-            'https://leena-mu.vercel.app',
-            'https://www.leenabyalekhya.in',
-            ...parseOrigins(process.env.FRONTEND_URL, process.env.CORS_ORIGIN),
-        ];
-
-        // Check if origin is allowed
-        const isAllowed = allowedOrigins.includes(origin);
-
-        // Set CORS headers for allowed origins
-        if (isAllowed) {
-            res.setHeader('Access-Control-Allow-Origin', origin);
-            res.setHeader('Vary', 'Origin');
-            res.setHeader('Access-Control-Allow-Credentials', 'true');
-        }
-
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-        res.setHeader('Access-Control-Expose-Headers', 'set-cookie');
-
-        if (req.method === 'OPTIONS') {
-            res.sendStatus(204);
-            return;
-        }
-
-        next();
-    });
+    app.use(
+      cors({
+        origin: [
+          "http://localhost:5173",
+          "http://localhost:5174",
+          "http://localhost:3000",
+          "http://localhost:8080",
+          "http://localhost:8081",
+          "http://localhost:8082",
+          "https://leena-mu.vercel.app",
+          "https://www.leenabyalekhya.in",
+          ...parseOrigins(process.env.FRONTEND_URL, process.env.CORS_ORIGIN),
+        ],
+        credentials: true,
+        methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization"],
+      })
+    );
 
     // Security middleware
     app.use(helmet({

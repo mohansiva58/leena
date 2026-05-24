@@ -8,19 +8,39 @@ export interface Cart {
     updatedAt: string;
 }
 
+type SizeQuantityPayload =
+    | Array<{ size: string; quantity: number }>
+    | Record<string, number>
+    | string;
+
 export const cartService = {
     getCart: async (): Promise<Cart> => {
         const response = await api.get('/cart');
         return response.data;
     },
 
-    addToCart: async (productId: string, size: string, quantity: number = 1, variantImage?: string, color?: string): Promise<Cart> => {
-        const response = await api.post('/cart/add', { productId, size, quantity, variantImage, color });
+    addToCart: async (
+        productId: string,
+        size: string,
+        quantity: number = 1,
+        variantImage?: string,
+        color?: string,
+        sizeQuantities?: SizeQuantityPayload,
+        sizeCounts?: SizeQuantityPayload
+    ): Promise<Cart> => {
+        const response = await api.post('/cart/add', { productId, size, quantity, variantImage, color, sizeQuantities, sizeCounts });
         return response.data;
     },
 
-    updateCartItem: async (productId: string, size: string, quantity: number, color?: string): Promise<Cart> => {
-        const response = await api.put('/cart/update', { productId, size, quantity, color });
+    updateCartItem: async (
+        productId: string,
+        size: string,
+        quantity: number,
+        color?: string,
+        sizeQuantities?: SizeQuantityPayload,
+        sizeCounts?: SizeQuantityPayload
+    ): Promise<Cart> => {
+        const response = await api.put('/cart/update', { productId, size, quantity, color, sizeQuantities, sizeCounts });
         return response.data;
     },
 

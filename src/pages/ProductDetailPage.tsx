@@ -24,7 +24,7 @@ import { AuthModal } from '@/components/AuthModal';
 
 import { Product, ColorVariant } from '@/lib/products';
 
-import { useCartStore } from '@/lib/cart';
+import { useCartStore, getProductId, getCartItemImage } from '@/lib/cart';
 import { useWishlistStore } from '@/lib/wishlist';
 
 import { useAuth } from '@/hooks/useAuth';
@@ -56,6 +56,7 @@ export default function ProductDetailPage() {
     useState<string>();
 
   const [quantity, setQuantity] = useState(1);
+  const [sizeCounts, setSizeCounts] = useState<Record<string, number>>({});
 
   const [showAuthModal, setShowAuthModal] =
     useState(false);
@@ -63,6 +64,91 @@ export default function ProductDetailPage() {
   const addItem = useCartStore(
     (state) => state.addItem
   );
+
+  const updateBulkSizeCount = (size: string, delta: number) => {
+    setSizeCounts((current) => {
+      const nextValue = Math.max(0, (current[size] || 0) + delta);
+      return { ...current, [size]: nextValue };
+    });
+  };
+
+  const clearBulkSizeCounts = () => {
+    setSizeCounts({});
+  };
+
+  const getSelectedSizeEntries = () => {
+    if (!product) return [] as Array<{ size: string; quantity: number }>;
+
+    const sizeList = Array.isArray(product.sizes)
+      ? product.sizes
+      : String(product.sizes || '').split(',').map((size) => size.trim()).filter(Boolean);
+    const bulkEntries = sizeList
+      .map((size) => ({ size, quantity: sizeCounts[size] || 0 }))
+      .filter((entry) => entry.quantity > 0);
+
+    if (bulkEntries.length > 0) {
+      return bulkEntries;
+    }
+
+    if (!selectedSize) {
+      return [] as Array<{ size: string; quantity: number }>;
+    }
+
+    return [{ size: selectedSize, quantity }];
+  };
+
+  const addSelectionsToCart = () => {
+    if (!product) return false;
+
+    const selections = getSelectedSizeEntries();
+    if (selections.length === 0) {
+      toast.error('Please select a size');
+      return false;
+    }
+
+    const activeColorVariant = product.colors?.find(
+      (c) => c.colorName === selectedColor
+    );
+    const cartImage = selectedImage || activeColorVariant?.image?.url || product.image;
+    const totalRequested = selections.reduce((sum, entry) => sum + entry.quantity, 0);
+    const productId = getProductId(product);
+    const existingQuantity = useCartStore.getState().items.reduce((sum, item) => {
+      return getProductId(item.product) === productId &&
+        item.color === (selectedColor || undefined) &&
+        getCartItemImage(item) === cartImage
+        ? sum + item.quantity
+        : sum;
+    }, 0);
+
+    if (product.stock !== undefined && existingQuantity + totalRequested > product.stock) {
+      toast.error(`Only ${product.stock} total item(s) available in stock.`);
+      return false;
+    }
+
+    if (selectedSize && product.sizeCounts) {
+      const selectedRemaining = product.sizeCounts[selectedSize] ?? 0;
+      if (selectedRemaining <= 0) {
+        toast.error(`${selectedSize} is out of stock`);
+        return false;
+      }
+    }
+
+    for (const selection of selections) {
+      const success = addItem(
+        product,
+        selection.size,
+        selection.quantity,
+        cartImage,
+        selectedColor || undefined
+      );
+
+      if (!success) {
+        return false;
+      }
+    }
+
+    return true;
+  };
 
   const {
     addItem: addToWishlist,
@@ -88,6 +174,11 @@ export default function ProductDetailPage() {
       if (!id) return;
 
       setLoading(true);
+      setSelectedSize(null);
+      setSelectedColor(null);
+      setSelectedImage(undefined);
+      setQuantity(1);
+      setSizeCounts({});
 
       try {
         let data: Product | null = null;
@@ -237,14 +328,14 @@ export default function ProductDetailPage() {
     return [...new Set(images)].filter(Boolean);
   })();
 
+  const availableSizes = Array.isArray(product.sizes)
+    ? product.sizes
+    : String(product.sizes || '').split(',').map((size) => size.trim()).filter(Boolean);
+  const sizeAvailability = product.sizeCounts || {};
+
   /* ADD TO CART */
 
   const handleAddToCart = () => {
-    if (!selectedSize) {
-      toast.error('Please select a size');
-      return;
-    }
-
     if (
       product.stock !== undefined &&
       product.stock <= 0
@@ -253,18 +344,7 @@ export default function ProductDetailPage() {
       return;
     }
 
-    const activeColorVariant = product.colors?.find(
-      (c) => c.colorName === selectedColor
-    );
-    const cartImage = selectedImage || activeColorVariant?.image?.url || product.image;
-
-    const success = addItem(
-      product,
-      selectedSize,
-      quantity,
-      cartImage,
-      selectedColor || undefined
-    );
+    const success = addSelectionsToCart();
 
     if (success) {
       toast.success('Added to cart');
@@ -274,28 +354,12 @@ export default function ProductDetailPage() {
   /* BUY NOW */
 
   const handleBuyNow = () => {
-    if (!selectedSize) {
-      toast.error('Please select a size');
-      return;
-    }
-
     if (!isAuthenticated) {
       setShowAuthModal(true);
       return;
     }
 
-    const activeColorVariant = product.colors?.find(
-      (c) => c.colorName === selectedColor
-    );
-    const cartImage = selectedImage || activeColorVariant?.image?.url || product.image;
-
-    const success = addItem(
-      product,
-      selectedSize,
-      quantity,
-      cartImage,
-      selectedColor || undefined
-    );
+    const success = addSelectionsToCart();
 
     if (success) {
       navigate('/checkout');
@@ -326,7 +390,7 @@ export default function ProductDetailPage() {
     <div className="min-h-screen bg-white">
       <Header />
 
-      <main className="bg-white pt-14 pb-8">
+      <main className="bg-white pt-16 lg:pt-20 pb-8">
         <div className="mx-auto max-w-7xl px-4">
           {/* BREADCRUMB */}
 
@@ -640,31 +704,45 @@ export default function ProductDetailPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  {product.sizes.map((size) => (
+                  {availableSizes.map((size) => {
+                    const remaining = sizeAvailability[size];
+                    const isOutOfStock = typeof remaining === 'number' ? remaining <= 0 : (product.stock ?? 0) <= 0;
+
+                    return (
                     <button
                       key={size}
+                      disabled={isOutOfStock}
                       onClick={() =>
                         setSelectedSize(size)
                       }
                       className={`
                         h-11
-                        min-w-[48px]
+                        min-w-[84px]
                         rounded-full
                         border
                         px-4
                         text-sm
                         font-medium
                         transition-all
-                        ${selectedSize === size
-                          ? 'border-black bg-black text-white'
-                          : 'border-neutral-300 bg-white text-black'
+                        ${isOutOfStock
+                          ? 'cursor-not-allowed border-neutral-200 bg-neutral-100 text-neutral-400'
+                          : selectedSize === size
+                            ? 'border-black bg-black text-white'
+                            : 'border-neutral-300 bg-white text-black'
                         }
                       `}
                     >
-                      {size}
+                      <span className="flex items-center gap-2">
+                        <span>{size}</span>
+                        <span className="text-[10px] opacity-75">
+                          {typeof remaining === 'number' ? `${remaining} left` : ''}
+                        </span>
+                      </span>
                     </button>
-                  ))}
+                  )})}
                 </div>
+
+             
               </div>
 
               {/* COLORS */}
@@ -730,6 +808,9 @@ export default function ProductDetailPage() {
                 <h3 className="mb-3 font-semibold">
                   Quantity
                 </h3>
+                <p className="mb-3 text-xs text-neutral-500">
+                  Use this for a single selected size. Bulk counts above will override this section.
+                </p>
 
                 <div
                   className="
@@ -926,19 +1007,9 @@ export default function ProductDetailPage() {
           setShowAuthModal(false)
         }
         onSuccess={() => {
-          if (product) {
-            addItem(
-              product,
-              selectedSize!,
-              quantity,
-              selectedImage ||
-              product.image,
-              selectedColor ||
-              undefined
-            );
-
-            navigate('/checkout');
-          }
+            if (product && addSelectionsToCart()) {
+              navigate('/checkout');
+            }
         }}
       />
 

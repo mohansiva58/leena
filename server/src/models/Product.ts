@@ -23,6 +23,7 @@ export interface IProduct extends Document {
     images: string[];
     category: string;
     sizes: string[];
+    sizeCounts?: Record<string, number>;
     description: string;
     rating: number;
     reviews: number;
@@ -61,6 +62,10 @@ const ProductSchema: Schema = new Schema(
                 },
                 message: 'At least one valid size is required'
             }
+        },
+        sizeCounts: {
+            type: Map,
+            of: Number,
         },
         description: { type: String, required: true },
         rating: { type: Number, default: 0, min: 0, max: 5 },

@@ -7,6 +7,7 @@ import { cacheGet, cacheSet, cacheDel, cacheInvalidatePrefix, CACHE_TTL } from '
 import {
     handleImageUploads,
     parseSizes,
+    parseSizeCounts,
     parseCommonFields,
     validateRequiredItemFields,
     generateItemId,
@@ -51,6 +52,12 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
 
         // Shared: parse sizes
         if (!parseSizes(productData, res)) return;
+        parseSizeCounts(productData);
+
+        if (productData.sizeCounts && typeof productData.sizeCounts === 'object') {
+            productData.stock = Object.values(productData.sizeCounts as Record<string, unknown>)
+                .reduce((sum, value) => sum + Math.max(0, Math.floor(Number(value) || 0)), 0);
+        }
 
         // Shared: convert types
         parseCommonFields(productData);
@@ -313,6 +320,11 @@ export const updateProduct = async (req: AuthRequest, res: Response): Promise<vo
         }
         if (updates.sizes && typeof updates.sizes === 'string') {
             try { updates.sizes = JSON.parse(updates.sizes); } catch { updates.sizes = updates.sizes.split(',').map((s: string) => s.trim()); }
+        }
+        parseSizeCounts(updates);
+        if (updates.sizeCounts && typeof updates.sizeCounts === 'object') {
+            updates.stock = Object.values(updates.sizeCounts as Record<string, unknown>)
+                .reduce((sum, value) => sum + Math.max(0, Math.floor(Number(value) || 0)), 0);
         }
 
         // Try productId first, fallback to _id if valid ObjectId

@@ -18,6 +18,7 @@ interface Product {
     isNew?: boolean;
     isBestseller?: boolean;
     sizes?: string;
+    sizeCounts?: Record<string, number>;
     image?: string;
     images?: string[];
 }
@@ -46,18 +47,22 @@ interface ApiErrorResponse {
 
 export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProductModalProps) {
     const [loading, setLoading] = useState(false);
+    const defaultSizes = ['XS', 'S', 'M', 'L', 'XL'];
     const [formData, setFormData] = useState({
         name: '',
         price: '',
         originalPrice: '',
         category: '',
         description: '',
-        stock: '100',
+        stock: '0',
         setType: '1 piece',
         isNew: false,
         isBestseller: false,
-        sizes: 'XS, S, M, L, XL',
+        sizes: defaultSizes.join(', '),
     });
+    const [sizeRows, setSizeRows] = useState<Array<{ size: string; quantity: string }>>(
+        defaultSizes.map((size) => ({ size, quantity: '0' }))
+    );
 
     const [mainImage, setMainImage] = useState<File | null>(null);
     const [mainImagePreview, setMainImagePreview] = useState<string | null>(null);
@@ -68,18 +73,26 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
     useEffect(() => {
         if (isOpen) {
             if (product) {
+                const sizes = Array.isArray(product.sizes) ? product.sizes : String(product.sizes || '').split(',').map((s) => s.trim()).filter(Boolean);
+                const sizeCounts = product.sizeCounts || {};
                 setFormData({
                     name: product.name,
                     price: product.price.toString(),
                     originalPrice: product.originalPrice?.toString() || '',
                     category: product.category,
                     description: product.description,
-                    stock: product.stock?.toString() || '100',
+                    stock: product.stock?.toString() || String(Object.values(sizeCounts).reduce((sum, value) => sum + Number(value || 0), 0)),
                     setType: product.setType || '1 piece',
                     isNew: product.newArrival || product.isNew || false,
                     isBestseller: product.isBestseller || false,
-                    sizes: Array.isArray(product.sizes) ? product.sizes.join(', ') : product.sizes,
+                    sizes: sizes.join(', '),
                 });
+                setSizeRows(
+                    (sizes.length > 0 ? sizes : defaultSizes).map((size) => ({
+                        size,
+                        quantity: String(sizeCounts[size] ?? 0),
+                    }))
+                );
                 setMainImagePreview(product.image);
                 setAdditionalImagePreviews(product.images || []);
                 setExistingImageUrls(product.images || []);
@@ -90,12 +103,13 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                     originalPrice: '',
                     category: '',
                     description: '',
-                    stock: '100',
+                    stock: '0',
                     setType: '1 piece',
                     isNew: false,
                     isBestseller: false,
-                    sizes: 'XS, S, M, L, XL',
+                    sizes: defaultSizes.join(', '),
                 });
+                setSizeRows(defaultSizes.map((size) => ({ size, quantity: '0' })));
                 setMainImage(null);
                 setMainImagePreview(null);
                 setAdditionalImages([]);
@@ -117,6 +131,31 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
         const { name, checked } = e.target;
         setFormData(prev => ({ ...prev, [name]: checked }));
     };
+
+    const handleSizeRowChange = (index: number, field: 'size' | 'quantity', value: string) => {
+        setSizeRows((current) => {
+            const next = [...current];
+            next[index] = { ...next[index], [field]: value };
+            return next;
+        });
+    };
+
+    const addSizeRow = () => {
+        setSizeRows((current) => [...current, { size: '', quantity: '0' }]);
+    };
+
+    const removeSizeRow = (index: number) => {
+        setSizeRows((current) => current.filter((_, rowIndex) => rowIndex !== index));
+    };
+
+    const normalizedSizeRows = sizeRows
+        .map((row) => ({
+            size: row.size.trim(),
+            quantity: Math.max(0, Math.floor(Number(row.quantity) || 0)),
+        }))
+        .filter((row) => row.size.length > 0 && row.quantity > 0);
+
+    const totalInventory = normalizedSizeRows.reduce((sum, row) => sum + row.quantity, 0);
 
     const handleMainImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -188,6 +227,10 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
             toast.error('Product description is required');
             return;
         }
+        if (normalizedSizeRows.length === 0) {
+            toast.error('Add at least one size with a quantity');
+            return;
+        }
         if (!mainImage && !product) {
             toast.error('Please select a main image');
             return;
@@ -201,6 +244,9 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
             Object.entries(formData).forEach(([key, value]) => {
                 data.append(key, String(value));
             });
+            data.set('sizes', normalizedSizeRows.map((row) => row.size).join(', '));
+            data.set('sizeCounts', JSON.stringify(Object.fromEntries(normalizedSizeRows.map((row) => [row.size, row.quantity]))));
+            data.set('stock', String(totalInventory));
 
             if (mainImage) {
                 data.append('image', mainImage);
@@ -239,12 +285,13 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                 originalPrice: '',
                 category: '',
                 description: '',
-                stock: '100',
+                stock: '0',
                 setType: '1 piece',
                 isNew: false,
                 isBestseller: false,
-                sizes: 'XS, S, M, L, XL',
+                sizes: defaultSizes.join(', '),
             });
+            setSizeRows(defaultSizes.map((size) => ({ size, quantity: '0' })));
             setMainImage(null);
             setMainImagePreview(null);
             setAdditionalImages([]);
@@ -333,15 +380,15 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Stock</label>
+                                    <label className="block text-sm font-medium mb-1">Total Stock</label>
                                     <input
                                         type="number"
                                         name="stock"
-                                        value={formData.stock}
-                                        onChange={handleInputChange}
-                                        required
-                                        className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-[#06095b]"
+                                        value={totalInventory}
+                                        readOnly
+                                        className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-[#06095b] opacity-80"
                                     />
+                                    <p className="mt-1 text-xs text-muted-foreground">This is calculated automatically from the size quantities below.</p>
                                 </div>
 
 
@@ -553,15 +600,45 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium mb-1">Sizes (comma separated)</label>
-                            <input
-                                type="text"
-                                name="sizes"
-                                value={formData.sizes}
-                                onChange={handleInputChange}
-                                className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-[#06095b]"
-                                placeholder="XS, S, M, L, XL"
-                            />
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="block text-sm font-medium">Size Quantities</label>
+                                <button
+                                    type="button"
+                                    onClick={addSizeRow}
+                                    className="text-xs font-semibold text-[#06095b] hover:underline"
+                                >
+                                    + Add size
+                                </button>
+                            </div>
+                            <div className="space-y-3 rounded-xl border border-border bg-secondary/20 p-3">
+                                {sizeRows.map((row, index) => (
+                                    <div key={`${row.size}-${index}`} className="grid grid-cols-[1fr_120px_auto] gap-2 items-center">
+                                        <input
+                                            type="text"
+                                            value={row.size}
+                                            onChange={(e) => handleSizeRowChange(index, 'size', e.target.value)}
+                                            className="w-full px-3 py-2 bg-background rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-[#06095b]"
+                                            placeholder="Size"
+                                        />
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={row.quantity}
+                                            onChange={(e) => handleSizeRowChange(index, 'quantity', e.target.value)}
+                                            className="w-full px-3 py-2 bg-background rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-[#06095b]"
+                                            placeholder="Count"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => removeSizeRow(index)}
+                                            className="px-3 py-2 rounded-lg border border-border text-sm hover:bg-background"
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">Example: XS 3, M 3, L 4. Sizes with zero count will be treated as out of stock.</p>
                         </div>
 
                         <div className="flex gap-6">

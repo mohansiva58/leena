@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import Product from '../models/Product';
 import Sale from '../models/Sale';
+import { resolveSizeQuantities } from '../utils/sizeQuantities';
 
 interface ImageItem {
     image: string;
@@ -22,11 +23,13 @@ export interface ResolvedLine {
 
 export interface RawOrderItemInput {
     productId: string;
-    size: string;
+    size?: string;
     quantity?: number;
     image?: string;
     variantImage?: string;
     color?: string;
+    sizeQuantities?: Array<{ size: string; quantity: number }> | Record<string, unknown> | string;
+    sizeCounts?: Array<{ size: string; quantity: number }> | Record<string, unknown> | string;
 }
 
 function resolveVariantImage(item: ImageItem, raw: RawOrderItemInput): string {
@@ -61,56 +64,76 @@ export async function resolveOrderLines(
     let subtotal = 0;
 
     for (const raw of rawItems) {
-        const qty = Math.max(1, Math.floor(Number(raw.quantity) || 1));
-        if (!raw.productId || !raw.size) {
-            throw new Error('Each item must include productId and size');
+        if (!raw.productId) {
+            throw new Error('Each item must include productId');
         }
+
+        const sizeItems = resolveSizeQuantities({
+            size: raw.size,
+            quantity: raw.quantity,
+            sizeQuantities: raw.sizeQuantities,
+            sizeCounts: raw.sizeCounts,
+        });
+
+        if (sizeItems.length === 0) {
+            throw new Error('Each item must include at least one size and quantity');
+        }
+
+        const totalRequested = sizeItems.reduce((sum, item) => sum + item.quantity, 0);
 
         const product = await Product.findOne({ productId: raw.productId });
         if (product) {
-            if (!product.sizes?.includes(raw.size)) {
-                throw new Error(`Invalid size for product ${raw.productId}`);
-            }
-            if (product.stock < qty) {
+            if (product.stock < totalRequested) {
                 throw new Error(`Insufficient stock for ${product.name}`);
             }
-            const lineImage = resolveVariantImage(product, raw);
-            lines.push({
-                productId: raw.productId,
-                name: product.name,
-                price: product.price,
-                image: lineImage,
-                size: raw.size,
-                quantity: qty,
-                source: 'product',
-                variantImage: lineImage,
-                color: raw.color,
-            });
-            subtotal += product.price * qty;
+
+            for (const sizeItem of sizeItems) {
+                if (!product.sizes?.includes(sizeItem.size)) {
+                    throw new Error(`Invalid size for product ${raw.productId}`);
+                }
+
+                const lineImage = resolveVariantImage(product, raw);
+                lines.push({
+                    productId: raw.productId,
+                    name: product.name,
+                    price: product.price,
+                    image: lineImage,
+                    size: sizeItem.size,
+                    quantity: sizeItem.quantity,
+                    source: 'product',
+                    variantImage: lineImage,
+                    color: raw.color,
+                });
+                subtotal += product.price * sizeItem.quantity;
+            }
             continue;
         }
 
         const sale = await Sale.findOne({ saleId: raw.productId });
         if (sale) {
-            if (!sale.sizes?.includes(raw.size)) {
-                throw new Error(`Invalid size for sale item ${raw.productId}`);
-            }
-            if (sale.stock < qty) {
+            if (sale.stock < totalRequested) {
                 throw new Error(`Insufficient stock for ${sale.name}`);
             }
-            const lineImage = resolveVariantImage(sale, raw);
-            lines.push({
-                productId: raw.productId,
-                name: sale.name,
-                price: sale.price,
-                image: lineImage,
-                size: raw.size,
-                quantity: qty,
-                source: 'sale',
-                variantImage: lineImage,
-                color: raw.color,
-            });
-            subtotal += sale.price * qty;
+
+            for (const sizeItem of sizeItems) {
+                if (!sale.sizes?.includes(sizeItem.size)) {
+                    throw new Error(`Invalid size for sale item ${raw.productId}`);
+                }
+
+                const lineImage = resolveVariantImage(sale, raw);
+                lines.push({
+                    productId: raw.productId,
+                    name: sale.name,
+                    price: sale.price,
+                    image: lineImage,
+                    size: sizeItem.size,
+                    quantity: sizeItem.quantity,
+                    source: 'sale',
+                    variantImage: lineImage,
+                    color: raw.color,
+                });
+                subtotal += sale.price * sizeItem.quantity;
+            }
             continue;
         }
 
@@ -126,9 +149,14 @@ export async function decrementStockForLines(
 ): Promise<void> {
     for (const line of lines) {
         if (line.source === 'product') {
+            const sizeKey = `sizeCounts.${line.size}`;
             const res = await Product.updateOne(
-                { productId: line.productId, stock: { $gte: line.quantity } },
-                { $inc: { stock: -line.quantity } },
+                {
+                    productId: line.productId,
+                    stock: { $gte: line.quantity },
+                    $or: [{ sizeCounts: { $exists: false } }, { [sizeKey]: { $gte: line.quantity } }],
+                },
+                { $inc: { stock: -line.quantity, [sizeKey]: -line.quantity } },
                 session ? { session } : {}
             );
             if (res.modifiedCount !== 1) {
@@ -153,9 +181,10 @@ export async function incrementStockForLines(
 ): Promise<void> {
     for (const line of lines) {
         if (line.source === 'product') {
+            const sizeKey = `sizeCounts.${line.size}`;
             await Product.updateOne(
                 { productId: line.productId },
-                { $inc: { stock: line.quantity } },
+                { $inc: { stock: line.quantity, [sizeKey]: line.quantity } },
                 session ? { session } : {}
             );
         } else {

@@ -5,6 +5,7 @@ import Cart from '../models/Cart';
 import Product from '../models/Product';
 import Sale from '../models/Sale';
 import { cacheGet, cacheSet, cacheDel, CACHE_TTL } from '../utils/cache';
+import { resolveSizeQuantities } from '../utils/sizeQuantities';
 
 interface ImageItem {
     image: string;
@@ -80,10 +81,16 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<void> 
             return;
         }
 
-        const { productId, size, quantity = 1, variantImage, color } = req.body;
+        const { productId, size, quantity = 1, variantImage, color, sizeQuantities, sizeCounts } = req.body;
 
-        if (!productId || !size) {
-            res.status(400).json({ error: 'Product ID and size are required' });
+        if (!productId) {
+            res.status(400).json({ error: 'Product ID is required' });
+            return;
+        }
+
+        const sizeItems = resolveSizeQuantities({ size, quantity, sizeQuantities, sizeCounts });
+        if (sizeItems.length === 0) {
+            res.status(400).json({ error: 'At least one size and quantity is required' });
             return;
         }
 
@@ -97,6 +104,8 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<void> 
 
         const lineImage = resolveVariantImage(product, variantImage);
 
+        const requestedQuantity = sizeItems.reduce((sum, item) => sum + item.quantity, 0);
+
         // Check if product is in stock
         if (product.stock <= 0) {
             res.status(400).json({ error: 'This product is out of stock' });
@@ -104,7 +113,7 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<void> 
         }
 
         // Check if requested quantity is available
-        if (quantity > product.stock) {
+        if (requestedQuantity > product.stock) {
             res.status(400).json({ 
                 error: `Only ${product.stock} item(s) available in stock` 
             });
@@ -117,38 +126,36 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<void> 
             cart = new Cart({ userId, items: [] });
         }
 
-        // Check if item already exists (by productId, size, image and color)
-        const existingItemIndex = cart.items.findIndex(
-            (item) => item.productId === canonicalId && item.size === size && item.image === lineImage && item.color === color
-        );
+        for (const sizeItem of sizeItems) {
+            const existingItemIndex = cart.items.findIndex(
+                (item) => item.productId === canonicalId && item.size === sizeItem.size && item.image === lineImage && item.color === color
+            );
 
-        const totalQuantity = existingItemIndex > -1 
-            ? cart.items[existingItemIndex].quantity + quantity 
-            : quantity;
+            const totalQuantity = existingItemIndex > -1
+                ? cart.items[existingItemIndex].quantity + sizeItem.quantity
+                : sizeItem.quantity;
 
-        // Check total quantity against stock
-        if (totalQuantity > product.stock) {
-            res.status(400).json({ 
-                error: `Only ${product.stock} total item(s) available in stock. You already have ${existingItemIndex > -1 ? cart.items[existingItemIndex].quantity : 0} in your cart.` 
-            });
-            return;
-        }
+            if (totalQuantity > product.stock) {
+                res.status(400).json({
+                    error: `Only ${product.stock} total item(s) available in stock for size ${sizeItem.size}. You already have ${existingItemIndex > -1 ? cart.items[existingItemIndex].quantity : 0} in your cart.`,
+                });
+                return;
+            }
 
-        if (existingItemIndex > -1) {
-            // Update quantity
-            cart.items[existingItemIndex].quantity += quantity;
-        } else {
-            // Add new item
-            cart.items.push({
-                productId: canonicalId,
-                name: product.name,
-                price: product.price,
-                image: lineImage,
-                size,
-                quantity,
-                variantImage: lineImage,
-                color,
-            });
+            if (existingItemIndex > -1) {
+                cart.items[existingItemIndex].quantity += sizeItem.quantity;
+            } else {
+                cart.items.push({
+                    productId: canonicalId,
+                    name: product.name,
+                    price: product.price,
+                    image: lineImage,
+                    size: sizeItem.size,
+                    quantity: sizeItem.quantity,
+                    variantImage: lineImage,
+                    color,
+                });
+            }
         }
 
         await cart.save();
@@ -168,15 +175,16 @@ export const updateCartItem = async (req: AuthRequest, res: Response): Promise<v
         const userId = req.user?.uid;
         if (!userId) { res.status(401).json({ error: 'Unauthorized' }); return; }
 
-        const { productId, size, quantity, color } = req.body;
+        const { productId, size, quantity, color, sizeQuantities, sizeCounts } = req.body;
 
-        if (!productId || !size || quantity === undefined) {
-            res.status(400).json({ error: 'Product ID, size, and quantity are required' });
+        if (!productId) {
+            res.status(400).json({ error: 'Product ID is required' });
             return;
         }
 
-        if (quantity < 1) {
-            res.status(400).json({ error: 'Quantity must be at least 1' });
+        const sizeItems = resolveSizeQuantities({ size, quantity, sizeQuantities, sizeCounts });
+        if (sizeItems.length === 0) {
+            res.status(400).json({ error: 'At least one size and quantity is required' });
             return;
         }
 
@@ -193,7 +201,8 @@ export const updateCartItem = async (req: AuthRequest, res: Response): Promise<v
             return;
         }
 
-        if (quantity > product.stock) {
+        const requestedQuantity = sizeItems.reduce((sum, item) => sum + item.quantity, 0);
+        if (requestedQuantity > product.stock) {
             res.status(400).json({ 
                 error: `Only ${product.stock} item(s) available in stock` 
             });
@@ -206,8 +215,13 @@ export const updateCartItem = async (req: AuthRequest, res: Response): Promise<v
             return;
         }
 
+        if (sizeItems.length !== 1) {
+            res.status(400).json({ error: 'Updating multiple sizes at once is not supported. Please update sizes individually.' });
+            return;
+        }
+
         const itemIndex = cart.items.findIndex(
-            (item) => item.productId === canonicalId && item.size === size && (color === undefined || item.color === color)
+            (item) => item.productId === canonicalId && item.size === sizeItems[0].size && (color === undefined || item.color === color)
         );
 
         if (itemIndex === -1) {
@@ -215,7 +229,7 @@ export const updateCartItem = async (req: AuthRequest, res: Response): Promise<v
             return;
         }
 
-        cart.items[itemIndex].quantity = quantity;
+        cart.items[itemIndex].quantity = sizeItems[0].quantity;
         await cart.save();
 
         await cacheSet(getCacheKey(userId), cart, CACHE_TTL.CART);

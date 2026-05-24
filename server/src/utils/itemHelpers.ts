@@ -187,6 +187,61 @@ export const parseSizes = (data: Record<string, unknown>, res: Response): boolea
     return true;
 };
 
+/** Parse size counts from string/object to a normalized record. */
+export const parseSizeCounts = (data: Record<string, unknown>): void => {
+    const raw = data.sizeCounts;
+
+    if (!raw) {
+        return;
+    }
+
+    let parsed: unknown = raw;
+
+    if (typeof raw === 'string') {
+        try {
+            parsed = JSON.parse(raw);
+        } catch {
+            const counts: Record<string, number> = {};
+            raw.split(',').forEach((segment) => {
+                const [sizePart, quantityPart] = segment.split('=');
+                const size = (sizePart || '').trim();
+                const quantity = Math.floor(Number(quantityPart));
+                if (size && Number.isFinite(quantity) && quantity > 0) {
+                    counts[size] = quantity;
+                }
+            });
+            data.sizeCounts = counts;
+            return;
+        }
+    }
+
+    if (Array.isArray(parsed)) {
+        const counts: Record<string, number> = {};
+        parsed.forEach((entry) => {
+            if (!entry || typeof entry !== 'object') return;
+            const record = entry as { size?: unknown; quantity?: unknown; count?: unknown };
+            const size = String(record.size || '').trim();
+            const quantity = Math.floor(Number(record.quantity ?? record.count));
+            if (size && Number.isFinite(quantity) && quantity > 0) {
+                counts[size] = quantity;
+            }
+        });
+        data.sizeCounts = counts;
+        return;
+    }
+
+    if (parsed && typeof parsed === 'object') {
+        const counts: Record<string, number> = {};
+        for (const [size, quantity] of Object.entries(parsed as Record<string, unknown>)) {
+            const normalizedQuantity = Math.floor(Number(quantity));
+            if (size.trim() && Number.isFinite(normalizedQuantity) && normalizedQuantity > 0) {
+                counts[size.trim()] = normalizedQuantity;
+            }
+        }
+        data.sizeCounts = counts;
+    }
+};
+
 /** Convert common numeric/boolean fields from FormData strings. */
 export const parseCommonFields = (data: Record<string, unknown>): void => {
     if (data.price) data.price = Number(data.price);

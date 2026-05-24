@@ -150,9 +150,9 @@ export default function ShopPage() {
     <div className="min-h-screen bg-background">
       <Header />
 
-      <main className="pt-1 pb-10">
+      <main className="pt-16 lg:pt-20 pb-10">
         {/* Shop Hero Section */}
-        <section className="bg-elegant py-12 mb-8 border-b border-border/50">
+        <section className="bg-elegant py-5 mb-4 border-b border-border/50">
           <div className="container mx-auto px-4">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -160,12 +160,12 @@ export default function ShopPage() {
               transition={{ duration: 0.6 }}
               className="text-center max-w-2xl mx-auto"
             >
-              <nav className="flex justify-center items-center space-x-2 text-xs uppercase tracking-widest text-muted-foreground mb-4">
+              <nav className="flex justify-center items-center space-x-2 text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">
                 <Link to="/" className="hover:text-primary transition-colors">Home</Link>
                 <span>/</span>
                 <span className="text-primary font-medium">Shop</span>
               </nav>
-              <h1 className="mb-4 font-serif text-4xl font-bold text-foreground md:text-5xl lg:text-6xl">
+              <h1 className="mb-2 font-serif text-3xl font-bold text-foreground md:text-4xl lg:text-5xl">
                 {search
                   ? `Search: "${search}"`
                   : filterParam === 'new'
@@ -184,7 +184,7 @@ export default function ShopPage() {
 
         <div className="container mx-auto px-4">
           {/* Mobile Filter & Sort Bar */}
-          <div className="lg:hidden flex items-center justify-between gap-4 mb-6 sticky top-[64px] z-30 bg-background/80 backdrop-blur-md py-3 px-1">
+          <div className="lg:hidden flex items-center justify-between gap-4 mb-4 sticky top-[64px] z-30 bg-background/80 backdrop-blur-md py-2 px-1">
             <button
               onClick={() => setIsFilterOpen(true)}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-secondary rounded-full text-sm font-medium border border-border/50"
@@ -208,7 +208,7 @@ export default function ShopPage() {
           </div>
 
           {/* Desktop Filter/Sort Bar */}
-          <div className="hidden lg:flex items-center justify-end gap-4 mb-10 pb-6 border-b border-border/50">
+          <div className="hidden lg:flex items-center justify-end gap-4 mb-6 pb-4 border-b border-border/50">
             <div className="flex items-center gap-6">
               <p className="text-sm text-muted-foreground">
                 Showing <span className="text-foreground font-semibold">{visibleProducts.length}</span>
@@ -233,7 +233,7 @@ export default function ShopPage() {
           <div className="flex gap-8">
             {/* Desktop Sidebar Filters */}
             <aside className="hidden lg:block w-72 flex-shrink-0">
-              <div className="sticky top-28 space-y-10 pr-8">
+              <div className="sticky top-24 space-y-8 pr-8">
                 {/* Size */}
                 <div>
                   <h3 className="font-serif text-xl font-semibold mb-6 pb-2 border-b border-border/50">Select Size</h3>
@@ -353,7 +353,7 @@ export default function ShopPage() {
                 </div>
               ) : visibleProducts.length > 0 ? (
                 <>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:gap-x-6 sm:gap-y-12 lg:grid-cols-3">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-6 sm:gap-x-6 sm:gap-y-8 lg:grid-cols-3">
                   {visibleProducts.map((product, index) => (
                     <ProductCard key={product.productId || product.id || product._id} product={product} index={index} />
                   ))}

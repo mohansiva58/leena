@@ -41,7 +41,7 @@ export default function ProductDetailPage() {
   const [product, setProduct] =
     useState<Product | null>(null);
 
-  const [relatedProducts, setRelatedProducts] =
+  const [recentProducts, setRecentProducts] =
     useState<Product[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -221,19 +221,26 @@ export default function ProductDetailPage() {
           setSelectedImage(data.image);
         }
 
-        const allProducts =
-          await productService.getAllProducts();
+        const recentResponse =
+          await productService.getPagedProducts({
+            page: 1,
+            limit: 8,
+          });
 
-        const filtered = allProducts
+        const currentProductIds = new Set(
+          [id, data.productId, data.id, data._id].filter(Boolean)
+        );
+
+        const filtered = recentResponse.items
           .filter(
             (p: Product) =>
-              p.productId !== id &&
-              p.id !== id &&
-              p._id !== id
+              !currentProductIds.has(p.productId) &&
+              !currentProductIds.has(p.id) &&
+              !currentProductIds.has(p._id)
           )
           .slice(0, 4);
 
-        setRelatedProducts(filtered);
+        setRecentProducts(filtered);
       } catch (error) {
         console.error(error);
       } finally {
@@ -954,11 +961,25 @@ export default function ProductDetailPage() {
             </motion.div>
           </div>
 
-          {/* RELATED PRODUCTS */}
+          {/* RECENT PRODUCTS */}
 
-          {relatedProducts.length > 0 && (
+          {recentProducts.length > 0 && (
             <section className="mt-12">
-              <div className="mb-6">
+              <div className="mb-6 flex items-end justify-between gap-4">
+                <div>
+                  <p
+                    className="
+                      mb-2
+                      text-xs
+                      font-medium
+                      uppercase
+                      tracking-[0.25em]
+                      text-neutral-400
+                    "
+                  >
+                    Recently Posted
+                  </p>
+
                 <h2
                   className="
                     text-2xl
@@ -967,8 +988,24 @@ export default function ProductDetailPage() {
                     text-black
                   "
                 >
-                  You May Also Like
+                  Latest Arrivals
                 </h2>
+                </div>
+
+                <Link
+                  to="/shop?filter=new"
+                  className="
+                    hidden
+                    text-sm
+                    font-medium
+                    text-neutral-500
+                    transition-colors
+                    hover:text-black
+                    sm:inline
+                  "
+                >
+                  View All
+                </Link>
               </div>
 
               <div
@@ -980,7 +1017,7 @@ export default function ProductDetailPage() {
                   lg:grid-cols-4
                 "
               >
-                {relatedProducts.map(
+                {recentProducts.map(
                   (product, index) => (
                     <ProductCard
                       key={

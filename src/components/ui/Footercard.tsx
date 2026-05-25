@@ -10,7 +10,7 @@ export default function Footercard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
                     {/* Brand */}
                     <div className="space-y-4">
-                        <img src={logo} alt="Leena" className="h-16 w-16 rounded-full object-cover border border-blue-200/50 shadow-sm transition-transform duration-300 hover:scale-110 scale-105" />
+                        <img src={logo} alt="Leena" className="h-16 w-16 rounded-full object-cover border border-[#02013f]/20 shadow-sm transition-transform duration-300 hover:scale-110 scale-105" />
                         <p className="text-muted-foreground text-sm leading-relaxed font-light">
                             Elegance in Every Wear. Premium women's fashion designed for the modern, confident woman.
                         </p>
@@ -20,7 +20,7 @@ export default function Footercard() {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 whileHover={{ scale: 1.1, y: -2 }}
-                                className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white hover-glow transition-shadow"
+                                className="w-10 h-10 bg-[#02013f] rounded-full flex items-center justify-center text-white hover-glow transition-shadow"
                             >
                                 <Instagram size={18} />
                             </motion.a>
@@ -46,7 +46,7 @@ export default function Footercard() {
                                 <li key={item}>
                                     <Link
                                         to="/shop"
-                                        className="text-muted-foreground hover:text-blue-600 transition-colors text-sm"
+                                        className="text-muted-foreground hover:text-[#02013f] transition-colors text-sm"
                                     >
                                         {item}
                                     </Link>
@@ -60,22 +60,22 @@ export default function Footercard() {
                         <h4 className="font-serif text-lg font-semibold mb-4">Customer Care</h4>
                         <ul className="space-y-3">
                             <li>
-                                <Link to="/orders" className="text-muted-foreground hover:text-blue-600 transition-colors text-sm">
+                                <Link to="/orders" className="text-muted-foreground hover:text-[#02013f] transition-colors text-sm">
                                     Track Order
                                 </Link>
                             </li>
                             <li>
-                                <Link to="/refund-return-policy" className="text-muted-foreground hover:text-blue-600 transition-colors text-sm">
+                                <Link to="/refund-return-policy" className="text-muted-foreground hover:text-[#02013f] transition-colors text-sm">
                                     Refund / Return Policy
                                 </Link>
                             </li>
                             <li>
-                                <Link to="/terms-and-conditions" className="text-muted-foreground hover:text-blue-600 transition-colors text-sm">
+                                <Link to="/terms-and-conditions" className="text-muted-foreground hover:text-[#02013f] transition-colors text-sm">
                                     Terms & Conditions
                                 </Link>
                             </li>
                             <li>
-                                <Link to="/contact" className="text-muted-foreground hover:text-blue-600 transition-colors text-sm">
+                                <Link to="/contact" className="text-muted-foreground hover:text-[#02013f] transition-colors text-sm">
                                     Contact Us
                                 </Link>
                             </li>
@@ -87,15 +87,15 @@ export default function Footercard() {
                         <h4 className="font-serif text-lg font-semibold mb-4">Get In Touch</h4>
                         <ul className="space-y-3">
                             <li className="flex items-center gap-3 text-muted-foreground text-sm">
-                                <Phone size={16} className="text-blue-600" />
-                                <a href="tel:+918008743531" className="hover:underline hover:text-blue-600 transition-colors font-medium">+91 80087 43531</a>
+                                <Phone size={16} className="text-[#02013f]" />
+                                <a href="tel:+918008743531" className="hover:underline hover:text-[#02013f] transition-colors font-medium">+91 80087 43531</a>
                             </li>
                             <li className="flex items-center gap-3 text-muted-foreground text-sm">
-                                <Mail size={16} className="text-blue-600" />
-                                <a href="mailto:leenabyalekhya@gmail.com" className="hover:underline hover:text-blue-600 transition-colors">leenabyalekhya@gmail.com</a>
+                                <Mail size={16} className="text-[#02013f]" />
+                                <a href="mailto:leenabyalekhya@gmail.com" className="hover:underline hover:text-[#02013f] transition-colors">leenabyalekhya@gmail.com</a>
                             </li>
                             <li className="flex items-start gap-3 text-muted-foreground text-sm">
-                                <MapPin size={16} className="text-blue-600 mt-0.5" />
+                                <MapPin size={16} className="text-[#02013f] mt-0.5" />
                                 Ameenpur, Miyapur, Telangana, India
                             </li>
                         </ul>
@@ -108,13 +108,13 @@ export default function Footercard() {
                         <p className="text-muted-foreground text-sm text-center md:text-left">
                             © 2026 Leena. All rights reserved.
                         </p>
-                        <p className="font-serif text-blue-600 italic text-sm flex items-center gap-1.5 justify-center">
-                            <span className="text-blue-400">✦</span> LEENA by Alekhya <span className="text-blue-400">✦</span>
+                        <p className="font-serif text-[#02013f] italic text-sm flex items-center gap-1.5 justify-center">
+                            <span className="text-[#02013f]/60">✦</span> LEENA by Alekhya <span className="text-[#02013f]/60">✦</span>
                         </p>
                         <div className="flex gap-4 text-sm text-muted-foreground animate-fade-in">
-                            <Link to="/privacy-policy" className="hover:text-blue-600 transition-colors">Privacy Policy</Link>
-                            <Link to="/terms-and-conditions" className="hover:text-blue-600 transition-colors">Terms & Conditions</Link>
-                            <Link to="/refund-return-policy" className="hover:text-blue-600 transition-colors">Refund Policy</Link>
+                            <Link to="/privacy-policy" className="hover:text-[#02013f] transition-colors">Privacy Policy</Link>
+                            <Link to="/terms-and-conditions" className="hover:text-[#02013f] transition-colors">Terms & Conditions</Link>
+                            <Link to="/refund-return-policy" className="hover:text-[#02013f] transition-colors">Refund Policy</Link>
                         </div>
                     </div>
                 </div>

@@ -153,7 +153,7 @@ export function Header() {
                 <img
                   src={logo}
                   alt="Leena"
-                  className="h-12 w-12 rounded-full object-cover border border-blue-200/50 shadow-sm transition-transform duration-300 hover:scale-135 scale-125"
+                  className="h-12 w-12 rounded-full object-cover border border-[#02013f]/20 shadow-sm transition-transform duration-300 hover:scale-135 scale-125"
                 />
               </Link>
             </div>
@@ -163,27 +163,27 @@ export function Header() {
               <div className="flex items-center gap-8">
                 <Link
                   to="/"
-                  className={`text-xs font-medium uppercase tracking-[0.15em] transition-colors ${location.pathname === '/' ? 'text-blue-600' : 'text-foreground hover:text-blue-600'
+                  className={`text-xs font-medium uppercase tracking-[0.15em] transition-colors ${location.pathname === '/' ? 'text-[#02013f]' : 'text-foreground hover:text-[#02013f]'
                     }`}
                 >
                   Home
                 </Link>
                 <Link
                   to="/shop"
-                  className={`text-xs font-medium uppercase tracking-[0.15em] transition-colors ${location.pathname === '/shop' ? 'text-blue-600' : 'text-foreground hover:text-blue-600'
+                  className={`text-xs font-medium uppercase tracking-[0.15em] transition-colors ${location.pathname === '/shop' ? 'text-[#02013f]' : 'text-foreground hover:text-[#02013f]'
                     }`}
                 >
                   Shop
                 </Link>
                 <Link
                   to="/shop?filter=new"
-                  className="text-xs font-medium uppercase tracking-[0.15em] text-foreground hover:text-blue-600 transition-colors"
+                  className="text-xs font-medium uppercase tracking-[0.15em] text-foreground hover:text-[#02013f] transition-colors"
                 >
                   New Arrivals
                 </Link>
                 <Link
                   to="/about"
-                  className={`text-xs font-medium uppercase tracking-[0.15em] transition-colors ${location.pathname === '/about' ? 'text-blue-600' : 'text-foreground hover:text-blue-600'
+                  className={`text-xs font-medium uppercase tracking-[0.15em] transition-colors ${location.pathname === '/about' ? 'text-[#02013f]' : 'text-foreground hover:text-[#02013f]'
                     }`}
                 >
                   About
@@ -191,7 +191,7 @@ export function Header() {
                 {isAuthenticated && (
                   <Link
                     to="/orders"
-                    className={`text-xs font-medium uppercase tracking-[0.15em] transition-colors ${location.pathname === '/orders' ? 'text-blue-600' : 'text-foreground hover:text-blue-600'
+                    className={`text-xs font-medium uppercase tracking-[0.15em] transition-colors ${location.pathname === '/orders' ? 'text-[#02013f]' : 'text-foreground hover:text-[#02013f]'
                       }`}
                   >
                     My Orders
@@ -199,7 +199,7 @@ export function Header() {
                 )}
                 <Link
                   to="/contact"
-                  className={`text-xs font-medium uppercase tracking-[0.15em] transition-colors ${location.pathname === '/contact' ? 'text-blue-600' : 'text-foreground hover:text-blue-600'
+                  className={`text-xs font-medium uppercase tracking-[0.15em] transition-colors ${location.pathname === '/contact' ? 'text-[#02013f]' : 'text-foreground hover:text-[#02013f]'
                     }`}
                 >
                   Contact
@@ -234,7 +234,7 @@ export function Header() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    className={`absolute right-0 top-12 z-50 bg-white text-sm shadow-xl ring-1 ring-border transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 lg:static lg:shadow-none ${isSearchOpen
+                    className={`absolute right-0 top-12 z-50 bg-white text-sm shadow-xl ring-1 ring-border transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#02013f] lg:static lg:shadow-none ${isSearchOpen
                       ? 'w-[200px] lg:w-64 px-4 py-2 opacity-100 ml-2'
                       : 'pointer-events-none w-0 px-0 py-0 opacity-0'
                       }`}
@@ -256,7 +256,7 @@ export function Header() {
               <Link to="/wishlist" className="hidden lg:flex p-2 hover:bg-secondary transition relative">
                 <Heart size={20} className="text-foreground" />
                 {wishlistCount > 0 && (
-                  <span className="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-medium w-4 h-4 flex items-center justify-center rounded-full">
+                  <span className="absolute top-0 right-0 bg-[#02013f] text-white text-[10px] font-medium w-4 h-4 flex items-center justify-center rounded-full">
                     {wishlistCount}
                   </span>
                 )}
@@ -270,7 +270,7 @@ export function Header() {
                     className="p-2 hover:bg-secondary transition"
                     aria-label="Account"
                   >
-                    <Avatar className="h-7 w-7 border border-border cursor-pointer hover:border-blue-600 transition-colors">
+                    <Avatar className="h-7 w-7 border border-border cursor-pointer hover:border-[#02013f] transition-colors">
                       <AvatarImage src={user?.photoURL || ""} />
                       <AvatarFallback className="bg-secondary text-foreground font-semibold text-xs">
                         {user?.displayName?.charAt(0) || user?.email?.charAt(0) || "M"}
@@ -328,7 +328,7 @@ export function Header() {
               <Link to="/cart" className="relative flex p-2 hover:bg-secondary transition">
                 <ShoppingCart size={20} className="text-foreground" />
                 {totalItems > 0 && (
-                  <span className="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-medium w-4 h-4 flex items-center justify-center rounded-full">
+                  <span className="absolute top-0 right-0 bg-[#02013f] text-white text-[10px] font-medium w-4 h-4 flex items-center justify-center rounded-full">
                     {totalItems}
                   </span>
                 )}
@@ -348,7 +348,7 @@ export function Header() {
           <Link
             to="/"
             className={`flex flex-col items-center justify-center min-w-[60px] transition-colors ${location.pathname === "/"
-              ? "text-blue-600"
+              ? "text-[#02013f]"
               : "text-muted-foreground"
               }`}
           >
@@ -360,7 +360,7 @@ export function Header() {
           <Link
             to="/shop"
             className={`flex flex-col items-center justify-center min-w-[60px] transition-colors ${location.pathname === "/shop"
-              ? "text-blue-600"
+              ? "text-[#02013f]"
               : "text-muted-foreground"
               }`}
           >
@@ -372,7 +372,7 @@ export function Header() {
           <Link
             to="/about"
             className={`flex flex-col items-center justify-center min-w-[50px] transition-colors ${location.pathname === "/about"
-              ? "text-blue-600"
+              ? "text-[#02013f]"
               : "text-muted-foreground"
               }`}
           >
@@ -384,14 +384,14 @@ export function Header() {
           <Link
             to="/wishlist"
             className={`flex flex-col items-center justify-center relative min-w-[50px] transition-colors ${location.pathname === "/wishlist"
-              ? "text-blue-600"
+              ? "text-[#02013f]"
               : "text-muted-foreground"
               }`}
           >
             <div className="relative">
               <Heart size={22} strokeWidth={1.5} />
               {wishlistCount > 0 && (
-                <span className="absolute -top-2 -right-3 bg-blue-600 text-white text-[10px] w-4 h-4 flex items-center justify-center font-semibold rounded-full">
+                <span className="absolute -top-2 -right-3 bg-[#02013f] text-white text-[10px] w-4 h-4 flex items-center justify-center font-semibold rounded-full">
                   {wishlistCount}
                 </span>
               )}
@@ -403,7 +403,7 @@ export function Header() {
           {!isAuthenticated ? (
             <button
               onClick={() => setShowAuthModal(true)}
-              className="flex flex-col items-center justify-center min-w-[50px] text-muted-foreground transition-colors hover:text-blue-600"
+              className="flex flex-col items-center justify-center min-w-[50px] text-muted-foreground transition-colors hover:text-[#02013f]"
             >
               <User size={22} strokeWidth={1.5} />
               <span className="text-[10px] mt-1 font-medium uppercase tracking-wide">Login</span>
@@ -414,7 +414,7 @@ export function Header() {
               <Link
                 to="/orders"
                 className={`flex flex-col items-center justify-center min-w-[50px] transition-colors ${location.pathname === "/orders"
-                  ? "text-blue-600"
+                  ? "text-[#02013f]"
                   : "text-muted-foreground"
                   }`}
               >

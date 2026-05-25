@@ -224,10 +224,7 @@ export function ContactPage() {
                       <p>Everyday, 9:00 AM – 6:00 PM</p>
                     </div>
 
-                    <div className="text-muted-foreground mt-4">Custom Designs</div>
-                    <div className="mt-4">
-                      <p>Lead Designer: <a href="tel:+918008743531" className="text-blue-600 hover:text-blue-700 hover:underline">+91 80087 43531</a></p>
-                    </div>
+                  
 
                     <div className="text-muted-foreground mt-4">Careers</div>
                     <div className="mt-4">

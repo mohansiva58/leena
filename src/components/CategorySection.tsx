@@ -19,12 +19,17 @@ import product5 from '@/assets/product-5.jpg';
 import product6 from '@/assets/product-6.jpg';
 
 const categories = [
-  { label: 'Kurtas', query: 'Kurtas', image: product1 },
-  { label: "Dinu's Collections", query: "Dinu's Collections", image: product2 },
-  { label: 'Twine Cut Work', query: 'Twine Cut Work', image: product3 },
+  { label: 'Sarees', query: 'Sarees', image: product1 },
+  { label: 'Lehengas', query: 'Lehengas', image: product2 },
+  { label: 'Anarkali', query: 'Anarkali', image: product3 },
   { label: 'Dupattas', query: 'Dupattas', image: product4 },
-  { label: 'Blouses', query: 'Blouses', image: product5 },
-  { label: 'Bottom Wears', query: 'Bottom Wears', image: product6 },
+  { label: 'Kurtis', query: 'Kurtis', image: product5 },
+  { label: 'Blouses', query: 'Blouses', image: product6 },
+  { label: 'Bottom Wear', query: 'Bottom Wear', image: product1 },
+  { label: '2pc Set', query: '2pc Set', image: product2 },
+  { label: '3pc Set', query: '3pc Set', image: product3 },
+  { label: 'Frocks/Alines', query: 'Frocks/Alines', image: product4 },
+  { label: 'Handwork Dresses', query: 'Handwork Dresses', image: product5 },
 ];
 
 export function CategorySection() {

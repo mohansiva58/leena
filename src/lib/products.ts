@@ -161,17 +161,14 @@ export const categories = [
   'Sarees',
   'Lehengas',
   'Anarkali',
-  'Sharara',
-  'Khada Dupatta',
-  'Lancha',
-  'Salwar Kameez',
-  'Gharara',
-  'Kurtas',
-  "Dinu's Collections",
-  'Twine Cut Work',
   'Dupattas',
+  'Kurtis',
   'Blouses',
-  'Bottom Wears'
+  'Bottom Wear',
+  '2pc Set',
+  '3pc Set',
+  'Frocks/Alines',
+  'Handwork Dresses'
 ];
 
 export const priceRanges = [

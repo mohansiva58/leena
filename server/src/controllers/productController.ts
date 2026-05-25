@@ -56,7 +56,7 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
 
         if (productData.sizeCounts && typeof productData.sizeCounts === 'object') {
             productData.stock = Object.values(productData.sizeCounts as Record<string, unknown>)
-                .reduce((sum, value) => sum + Math.max(0, Math.floor(Number(value) || 0)), 0);
+                .reduce<number>((sum, value) => sum + Math.max(0, Math.floor(Number(value) || 0)), 0);
         }
 
         // Shared: convert types
@@ -324,7 +324,7 @@ export const updateProduct = async (req: AuthRequest, res: Response): Promise<vo
         parseSizeCounts(updates);
         if (updates.sizeCounts && typeof updates.sizeCounts === 'object') {
             updates.stock = Object.values(updates.sizeCounts as Record<string, unknown>)
-                .reduce((sum, value) => sum + Math.max(0, Math.floor(Number(value) || 0)), 0);
+                .reduce<number>((sum, value) => sum + Math.max(0, Math.floor(Number(value) || 0)), 0);
         }
 
         // Try productId first, fallback to _id if valid ObjectId

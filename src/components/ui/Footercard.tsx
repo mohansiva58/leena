@@ -25,7 +25,7 @@ export default function Footercard() {
                                 <Instagram size={18} />
                             </motion.a>
                             <motion.a
-                                href="https://wa.me/918008743531"
+                                href="https://wa.me/919032624257"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 whileHover={{ scale: 1.1, y: -2 }}
@@ -88,7 +88,7 @@ export default function Footercard() {
                         <ul className="space-y-3">
                             <li className="flex items-center gap-3 text-muted-foreground text-sm">
                                 <Phone size={16} className="text-[#02013f]" />
-                                <a href="tel:+918008743531" className="hover:underline hover:text-[#02013f] transition-colors font-medium">+91 80087 43531</a>
+                                <a href="tel:+919032624257" className="hover:underline hover:text-[#02013f] transition-colors font-medium">9032624257</a>
                             </li>
                             <li className="flex items-center gap-3 text-muted-foreground text-sm">
                                 <Mail size={16} className="text-[#02013f]" />

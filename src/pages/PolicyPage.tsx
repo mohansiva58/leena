@@ -80,9 +80,9 @@ export function PolicyPage({ title, intro, sections }: PolicyPageProps) {
               If you have any questions about our policy, need to report a damaged product, or want to submit an unboxing video, please contact our customer support team.
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-4 text-sm font-medium">
-              <a href="tel:+918008743531" className="flex items-center gap-2 rounded-full border border-blue-200 bg-white px-4 py-2 text-blue-600 transition-colors hover:bg-blue-50">
+              <a href="tel:+919032624257" className="flex items-center gap-2 rounded-full border border-blue-200 bg-white px-4 py-2 text-blue-600 transition-colors hover:bg-blue-50">
                 <Phone className="h-4 w-4" />
-                <span>+91 80087 43531</span>
+                <span>9032624257</span>
               </a>
               <a href="mailto:leenabyalekhya@gmail.com" className="flex items-center gap-2 rounded-full border border-blue-200 bg-white px-4 py-2 text-blue-600 transition-colors hover:bg-blue-50">
                 <Mail className="h-4 w-4" />
@@ -117,7 +117,7 @@ export function PrivacyPolicyPage() {
         },
         {
           heading: 'Contact',
-          body: 'For privacy questions, contact us at leenabyalekhya@gmail.com or +91 80087 43531.',
+          body: 'For privacy questions, contact us at leenabyalekhya@gmail.com or 9032624257.',
         },
       ]}
     />
@@ -214,8 +214,8 @@ export function ContactPage() {
 
                     <div className="text-muted-foreground">Customer Care</div>
                     <div className="space-y-1">
-                      <p>Phone: <a href="tel:+918008743531" className="text-blue-600 hover:text-blue-700 hover:underline">+91 80087 43531</a></p>
-                      <p>WhatsApp: <a href="https://wa.me/918008743531" className="text-blue-600 hover:text-blue-700 hover:underline">+91 80087 43531</a></p>
+                      <p>Phone: <a href="tel:+919032624257" className="text-blue-600 hover:text-blue-700 hover:underline">9032624257</a></p>
+                      <p>WhatsApp: <a href="https://wa.me/919032624257" className="text-blue-600 hover:text-blue-700 hover:underline">9032624257</a></p>
                       <p>Email: <a href="mailto:leenabyalekhya@gmail.com" className="text-blue-600 hover:text-blue-700 hover:underline">leenabyalekhya@gmail.com</a></p>
                     </div>
 
@@ -238,7 +238,7 @@ export function ContactPage() {
                     <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer" className="rounded-full bg-secondary px-5 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-blue-50 hover:text-blue-600 border border-transparent hover:border-blue-200">
                       Open In Google Maps
                     </a>
-                    <a href="tel:+918008743531" className="rounded-full bg-secondary px-5 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-blue-50 hover:text-blue-600 border border-transparent hover:border-blue-200">
+                    <a href="tel:+919032624257" className="rounded-full bg-secondary px-5 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-blue-50 hover:text-blue-600 border border-transparent hover:border-blue-200">
                       Call Customer Care
                     </a>
                     <a href="mailto:leenabyalekhya@gmail.com" className="rounded-full bg-secondary px-5 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-blue-50 hover:text-blue-600 border border-transparent hover:border-blue-200">

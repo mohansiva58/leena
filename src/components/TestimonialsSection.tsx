@@ -78,7 +78,7 @@ export function TestimonialsSection() {
               text-3xl
               font-semibold
               tracking-tight
-              text-black
+              text-[#02013f]
               sm:text-4xl
             "
           >

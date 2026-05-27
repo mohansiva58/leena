@@ -82,8 +82,14 @@ export default function CheckoutPage() {
     } catch (error: any) {
       console.error('Apply coupon error:', error);
       const errorMsg = error.response?.data?.error || 'Invalid coupon code';
-      setCouponError(errorMsg);
-      toast.error(errorMsg);
+      
+      // Don't show technical routing errors to the user
+      if (!errorMsg.includes('not found')) {
+        setCouponError(errorMsg);
+        toast.error(errorMsg);
+      } else {
+        toast.error('Unable to validate coupon at this time');
+      }
       setAppliedCoupon(null);
     } finally {
       setCouponLoading(false);

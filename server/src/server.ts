@@ -143,24 +143,19 @@ function createApp(): Application {
     });
 
     // ============ API ROUTES (with /api prefix) ============
-    const apiRouter = express.Router();
-    
-    // Apply limiters to the apiRouter
-    apiRouter.use('/users', authLimiter);
-    apiRouter.use(generalLimiter);
+    // Rate limiters for API
+    app.use('/api/users', authLimiter);
+    app.use('/api', generalLimiter);
 
-    // Register routes on the apiRouter
-    apiRouter.use('/coupons', couponRoutes);
-    apiRouter.use('/products', productRoutes);
-    apiRouter.use('/cart', cartRoutes);
-    apiRouter.use('/orders', orderRoutes);
-    apiRouter.use('/payment', paymentRoutes);
-    apiRouter.use('/users', userRoutes);
-    apiRouter.use('/admin', adminRoutes);
-    apiRouter.use('/sales', salesRoutes);
-
-    // Mount the apiRouter at /api
-    app.use('/api', apiRouter);
+    // Mount routes directly on /api prefix
+    app.use('/api/coupons', couponRoutes);
+    app.use('/api/products', productRoutes);
+    app.use('/api/cart', cartRoutes);
+    app.use('/api/orders', orderRoutes);
+    app.use('/api/payment', paymentRoutes);
+    app.use('/api/users', userRoutes);
+    app.use('/api/admin', adminRoutes);
+    app.use('/api/sales', salesRoutes);
 
     // ============ LEGACY ROUTES (without /api prefix) ============
     app.use('/products', productRoutes);

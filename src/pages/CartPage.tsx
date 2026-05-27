@@ -11,8 +11,7 @@ export default function CartPage() {
   const [promoCode, setPromoCode] = useState('');
 
   const subtotal = getTotalPrice();
-  const shipping = subtotal >= 2000 ? 0 : 90;
-  const total = subtotal + shipping;
+  const total = subtotal;
 
   if (items.length === 0) {
     return (
@@ -212,38 +211,10 @@ export default function CartPage() {
 
                 {/* Summary */}
                 <div className="space-y-3 text-sm">
-                  {/* Calculate and display total weight */}
-                  {(() => {
-                    const totalWeight = items.reduce((sum, item) => {
-                      return sum + ((item.product.weight || 0.5) * item.quantity);
-                    }, 0);
-                    return totalWeight > 0 ? (
-                      <div className="flex justify-between bg-orange-50 px-3 py-2 rounded">
-                        <span className="text-orange-700 text-xs font-medium">Total Weight:</span>
-                        <span className="text-orange-700 font-semibold">{totalWeight.toFixed(2)} kg</span>
-                      </div>
-                    ) : null;
-                  })()}
-                  
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Subtotal</span>
                     <span className="font-medium">₹{subtotal.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Shipping</span>
-                    <span className="font-medium">
-                      {shipping === 0 ? (
-                        <span className="text-primary">FREE</span>
-                      ) : (
-                        `₹${shipping}`
-                      )}
-                    </span>
-                  </div>
-                  {subtotal < 2000 && (
-                    <p className="text-xs text-muted-foreground">
-                      Add ₹{(2000 - subtotal).toLocaleString()} more for free shipping!
-                    </p>
-                  )}
                   <div className="border-t border-border pt-3 mt-3">
                     <div className="flex justify-between text-lg font-semibold">
                       <span>Total</span>

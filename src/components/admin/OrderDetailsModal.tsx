@@ -31,7 +31,8 @@ interface Order {
   items: OrderItem[];
   shippingAddress: ShippingAddress;
   subtotal: number;
-  shipping: number;
+  discount?: number;
+  couponCode?: string;
   total: number;
   paymentMethod?: 'razorpay' | 'cod';
   paymentStatus: string;
@@ -214,10 +215,12 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                     <span>Subtotal</span>
                     <span>₹{order.subtotal.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center text-foreground">
-                    <span>Shipping</span>
-                    <span>₹{order.shipping.toLocaleString()}</span>
-                  </div>
+                  {order.discount && order.discount > 0 && (
+                    <div className="flex justify-between items-center text-primary font-medium">
+                      <span>Discount {order.couponCode ? `(${order.couponCode})` : ''}</span>
+                      <span>-₹{order.discount.toLocaleString()}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center text-lg font-bold border-t border-border pt-2 text-primary">
                     <span>Total</span>
                     <span>₹{order.total.toLocaleString()}</span>

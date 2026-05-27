@@ -128,7 +128,7 @@ export function TermsPage() {
   return (
     <PolicyPage
       title="Terms & Conditions"
-      intro="By using Leena, you agree to the terms below for browsing, ordering, payment, shipping, and customer support."
+      intro="By using Leena, you agree to the terms below for browsing, ordering, payment, and customer support."
       sections={[
         {
           heading: 'Orders',

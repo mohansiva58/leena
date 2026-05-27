@@ -26,6 +26,7 @@ export interface CreateOrderData {
     razorpayOrderId?: string;
     razorpayPaymentId?: string;
     razorpaySignature?: string;
+    couponCode?: string;
 }
 
 export interface Order {
@@ -35,7 +36,6 @@ export interface Order {
     items: OrderItem[];
     shippingAddress: ShippingAddress;
     subtotal: number;
-    shipping: number;
     total: number;
     paymentMethod: string;
     paymentStatus: string;

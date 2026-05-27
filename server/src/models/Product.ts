@@ -30,7 +30,6 @@ export interface IProduct extends Document {
     newArrival: boolean;
     isBestseller: boolean;
     stock: number;
-    weight?: number; // Weight in kg
     setType?: string; // e.g., "1 piece", "2 piece set", "3 piece set"
     colors?: IColorVariant[]; // Color variants
     cloudinaryId?: string;
@@ -73,7 +72,6 @@ const ProductSchema: Schema = new Schema(
         newArrival: { type: Boolean, default: false },
         isBestseller: { type: Boolean, default: false },
         stock: { type: Number, default: 100, min: 0 },
-        weight: { type: Number, min: 0 }, // Weight in kg
         setType: { type: String }, // e.g., "1 piece", "2 piece set", "3 piece set"
         colors: [{
             colorName: { type: String, required: true },

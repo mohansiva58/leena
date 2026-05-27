@@ -9,8 +9,8 @@ import { useCartStore, getProductId, getCartItemImage } from '@/lib/cart';
 import { useAuth } from '@/hooks/useAuth';
 import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
 import { orderService } from '@/services/orderService';
+import { couponService } from '@/services/couponService';
 import { userService, SavedAddress } from '@/services/userService';
-import { calculateShippingCost } from '@/lib/shippingCalculator';
 import { indianStates } from '@/lib/indianStates';
 import { toast } from 'sonner';
 
@@ -30,8 +30,6 @@ export default function CheckoutPage() {
   const [savedAddress, setSavedAddress] = useState(false);
   const [isEditingAddress, setIsEditingAddress] = useState(true);
   const [savedAddressId, setSavedAddressId] = useState<string | null>(null);
-  const [shipping, setShipping] = useState(99);
-  const [shippingBreakdown, setShippingBreakdown] = useState<string>('');
   const [pincodeError, setPincodeError] = useState<string>('');
   const [pincodeValid, setPincodeValid] = useState(false);
 
@@ -45,31 +43,50 @@ export default function CheckoutPage() {
     pincode: '',
   });
 
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{ 
+    code: string; 
+    discountType: 'percentage' | 'fixed';
+    discountValue: number;
+  } | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+
   const subtotal = getTotalPrice();
-  const total = subtotal + shipping;
+  const discountAmount = appliedCoupon 
+    ? (appliedCoupon.discountType === 'percentage' 
+        ? Math.round((subtotal * appliedCoupon.discountValue) / 100) 
+        : appliedCoupon.discountValue) 
+    : 0;
+  const total = subtotal - discountAmount;
 
-  // Calculate shipping whenever state or cart items change
-  useEffect(() => {
-    if (formData.state && items.length > 0) {
-      const cartItemsForCalculation = items.map(item => ({
-        weight: item.product.weight || 0.5,
-        quantity: item.quantity,
-      }));
-
-      const result = calculateShippingCost({
-        state: formData.state,
-        cartItems: cartItemsForCalculation,
-        subtotal,
-      });
-
-      setShipping(result.shippingCost);
-      setShippingBreakdown(result.breakdown);
-    } else if (!formData.state) {
-      // Default shipping if state not selected
-      setShipping(99);
-      setShippingBreakdown('Shipping will be calculated after selecting state');
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    try {
+      setCouponLoading(true);
+      setCouponError(null);
+      const result = await couponService.validateCoupon(couponCode, subtotal);
+      setAppliedCoupon(result);
+      const saved = result.discountType === 'percentage' 
+        ? Math.round((subtotal * result.discountValue) / 100) 
+        : result.discountValue;
+      toast.success(`Coupon "${result.code}" applied! You saved ₹${saved}`);
+    } catch (error: any) {
+      console.error('Apply coupon error:', error);
+      const errorMsg = error.response?.data?.error || 'Invalid coupon code';
+      setCouponError(errorMsg);
+      toast.error(errorMsg);
+      setAppliedCoupon(null);
+    } finally {
+      setCouponLoading(false);
     }
-  }, [formData.state, items, subtotal]);
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode('');
+    setCouponError(null);
+  };
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -220,6 +237,7 @@ export default function CheckoutPage() {
           pincode: formData.pincode.trim(),
         },
         paymentMethod,
+        couponCode: appliedCoupon?.code,
       };
 
       // Razorpay payment
@@ -595,6 +613,95 @@ export default function CheckoutPage() {
                   </label>
                 </div>
 
+                {/* Order Items */}
+                <div className="bg-secondary rounded-lg p-6 mb-6">
+                  <h3 className="font-semibold mb-4">Order Items</h3>
+                  <div className="space-y-4">
+                    {items.map((item, idx) => (
+                      <div key={idx} className="flex gap-4 p-3 bg-background rounded-lg border border-border">
+                        <div className="w-16 h-20 rounded-md overflow-hidden bg-secondary flex-shrink-0">
+                          <img
+                            src={getCartItemImage(item)}
+                            alt={item.product.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-foreground text-sm line-clamp-1">{item.product.name}</p>
+                          <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                            <p>Category: {item.product.category}</p>
+                            <p>Size: <span className="font-medium text-foreground">{item.size}</span></p>
+                            {item.color && <p>Color: <span className="font-medium text-foreground">{item.color}</span></p>}
+                            <p>Qty: <span className="font-medium text-foreground">{item.quantity}</span></p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-sm text-primary">₹{(item.product.price * item.quantity).toLocaleString()}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Coupon Section */}
+                <div className="bg-secondary rounded-lg p-6 mb-6">
+                  <h3 className="font-semibold mb-4">Have a Coupon?</h3>
+                  {!appliedCoupon ? (
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Enter coupon code"
+                          value={couponCode}
+                          onChange={(e) => {
+                            setCouponCode(e.target.value.toUpperCase());
+                            if (couponError) setCouponError(null);
+                          }}
+                          className={`flex-1 px-4 py-2 bg-background rounded-lg border focus:outline-none focus:ring-2 focus:ring-primary uppercase ${couponError ? 'border-destructive' : 'border-border'}`}
+                        />
+                        <button
+                          onClick={handleApplyCoupon}
+                          disabled={couponLoading || !couponCode.trim()}
+                          className="px-6 py-2 btn-primary rounded-lg text-sm font-medium disabled:opacity-50"
+                        >
+                          {couponLoading ? '...' : 'Apply'}
+                        </button>
+                      </div>
+                      {couponError && (
+                        <motion.p
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="text-destructive text-sm font-medium flex items-center gap-1"
+                        >
+                          <AlertCircle size={14} />
+                          {couponError}
+                        </motion.p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between p-3 bg-primary/10 border border-primary/20 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Check className="text-primary" size={18} />
+                        <div>
+                          <span className="font-bold text-primary">{appliedCoupon.code}</span>
+                          <span className="text-sm text-primary ml-2">
+                            ({appliedCoupon.discountType === 'percentage' 
+                              ? `${appliedCoupon.discountValue}% OFF` 
+                              : `₹${appliedCoupon.discountValue} OFF`
+                            })
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={removeCoupon}
+                        className="text-xs text-destructive font-medium hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {/* Order Summary */}
                 <div className="bg-secondary rounded-lg p-6 mb-6">
                   <h3 className="font-semibold mb-4">Order Summary</h3>
@@ -603,19 +710,12 @@ export default function CheckoutPage() {
                       <span>Subtotal ({items.length} items)</span>
                       <span>₹{subtotal.toLocaleString()}</span>
                     </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between">
-                        <span>Shipping</span>
-                        <span className={shipping === 0 ? 'text-primary' : ''}>
-                          {shipping === 0 ? 'FREE' : `₹${shipping}`}
-                        </span>
+                    {discountAmount > 0 && (
+                      <div className="flex justify-between text-primary font-medium">
+                        <span>Coupon Discount ({appliedCoupon?.code})</span>
+                        <span>-₹{discountAmount.toLocaleString()}</span>
                       </div>
-                      {shippingBreakdown && (
-                        <div className="text-xs text-muted-foreground px-2 py-1 bg-background/50 rounded italic">
-                          {shippingBreakdown}
-                        </div>
-                      )}
-                    </div>
+                    )}
                     <div className="border-t border-border pt-2 mt-2">
                       <div className="flex justify-between font-semibold text-lg">
                         <span>Total</span>

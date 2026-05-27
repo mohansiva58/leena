@@ -250,7 +250,6 @@ export const parseCommonFields = (data: Record<string, unknown>): void => {
     if (data.rating) data.rating = Number(data.rating);
     if (data.reviews) data.reviews = Number(data.reviews);
     if (data.discount) data.discount = Number(data.discount);
-    if (data.weight) data.weight = Number(data.weight);
     
     // Parse colors from JSON string
     if (data.colors && typeof data.colors === 'string') {

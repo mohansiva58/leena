@@ -17,12 +17,14 @@ import {
   AlertCircle,
   Flame,
   Lock,
-  Home
+  Home,
+  Ticket
 } from 'lucide-react';
 
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { api } from '@/services/api';
+import { couponService, Coupon } from '@/services/couponService';
 import { AddProductModal } from '@/components/admin/AddProductModal';
 import { AddSaleModal } from '@/components/admin/AddSaleModal';
 import { OrderDetailsModal } from '@/components/admin/OrderDetailsModal';
@@ -63,7 +65,6 @@ interface Order {
   items: OrderItem[];
   total: number;
   subtotal: number;
-  shipping: number;
   orderStatus: string;
   paymentStatus: string;
   paymentMethod?: 'razorpay' | 'cod';
@@ -81,7 +82,7 @@ const statusColors: Record<string, string> = {
   Pending: 'bg-muted text-muted-foreground',
 };
 
-type TabType = 'dashboard' | 'orders' | 'products' | 'sales';
+type TabType = 'dashboard' | 'orders' | 'products' | 'sales' | 'coupons';
 
 // Interface for Product from API
 interface Product {
@@ -99,7 +100,6 @@ interface Product {
   stock: number;
   images?: string[];
   colors?: Array<{ colorName: string; colorCode?: string }>;
-  weight?: number;
   originalPrice?: number;
 }
 
@@ -137,13 +137,28 @@ export default function AdminPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [saleModes, setSaleModes] = useState<SaleMode[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isAddSaleModalOpen, setIsAddSaleModalOpen] = useState(false);
+  const [isAddCouponModalOpen, setIsAddCouponModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
   const [editingSale, setEditingSale] = useState<Sale | undefined>(undefined);
+  const [newCoupon, setNewCoupon] = useState<{
+    code: string;
+    discountType: 'percentage' | 'fixed';
+    discountValue: number;
+    minOrderAmount: number;
+    expiryDate: string;
+  }>({
+    code: '',
+    discountType: 'percentage',
+    discountValue: 0,
+    minOrderAmount: 0,
+    expiryDate: ''
+  });
   const [newSaleMode, setNewSaleMode] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
@@ -210,6 +225,54 @@ export default function AdminPage() {
     }
   };
 
+  const fetchCoupons = async () => {
+    try {
+      setLoading(true);
+      const response = await couponService.getAllCoupons();
+      setCoupons(response);
+    } catch (error) {
+      console.error('Failed to fetch coupons:', error);
+      toast.error('Failed to load coupons');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      await couponService.createCoupon(newCoupon);
+      toast.success('Coupon created successfully');
+      setIsAddCouponModalOpen(false);
+      setNewCoupon({
+        code: '',
+        discountType: 'percentage',
+        discountValue: 0,
+        minOrderAmount: 0,
+        expiryDate: ''
+      });
+      fetchCoupons();
+    } catch (error: any) {
+      console.error('Create coupon error:', error);
+      toast.error(error.response?.data?.error || 'Failed to create coupon');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteCoupon = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this coupon?')) return;
+    try {
+      await couponService.deleteCoupon(id);
+      toast.success('Coupon deleted successfully');
+      fetchCoupons();
+    } catch (error) {
+      console.error('Delete coupon error:', error);
+      toast.error('Failed to delete coupon');
+    }
+  };
+
   const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
       await api.put(`/admin/orders/${orderId}`, { status: newStatus });
@@ -231,6 +294,8 @@ export default function AdminPage() {
     } else if (activeTab === 'sales') {
       fetchSales();
       fetchSaleModes();
+    } else if (activeTab === 'coupons') {
+      fetchCoupons();
     } else if (activeTab === 'dashboard') {
       fetchStats();
       fetchProducts();
@@ -438,6 +503,7 @@ export default function AdminPage() {
               { id: 'orders', label: 'Orders', icon: ShoppingCart },
               { id: 'products', label: 'Products', icon: Package },
               { id: 'sales', label: 'Sales', icon: Flame },
+              { id: 'coupons', label: 'Coupons', icon: Ticket },
             ].map((tab) => (
               <motion.button
                 key={tab.id}
@@ -867,8 +933,200 @@ export default function AdminPage() {
               </div>
                             </motion.div>
           )}
+
+          {/* Coupons Tab */}
+          {activeTab === 'coupons' && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="space-y-8"
+            >
+              <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+                <div className="p-6 border-b border-border flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+                    <input
+                      type="text"
+                      placeholder="Search coupons..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-12 pr-4 py-3 bg-secondary rounded-full border-none focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setIsAddCouponModalOpen(true)}
+                    className="btn-primary flex items-center gap-2"
+                  >
+                    <Plus size={18} />
+                    Add Coupon
+                  </motion.button>
+                </div>
+
+                {loading ? (
+                  <div className="p-10 text-center text-muted-foreground">Loading coupons...</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-secondary">
+                        <tr>
+                          <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Code</th>
+                          <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Discount</th>
+                          <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Min Order</th>
+                          <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Expiry</th>
+                          <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Status</th>
+                          <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {coupons.filter(c =>
+                          c.code.toLowerCase().includes(searchQuery.toLowerCase())
+                        ).map((coupon) => (
+                          <tr key={coupon._id} className="hover:bg-secondary/50 transition-colors">
+                            <td className="px-6 py-4 font-bold text-sm">{coupon.code}</td>
+                            <td className="px-6 py-4 text-sm font-medium text-primary">
+                              {coupon.discountType === 'percentage' 
+                                ? `${coupon.discountValue}% OFF` 
+                                : `₹${coupon.discountValue} OFF`
+                              }
+                            </td>
+                            <td className="px-6 py-4 text-sm">₹{coupon.minOrderAmount || 0}</td>
+                            <td className="px-6 py-4 text-sm text-muted-foreground">
+                              {coupon.expiryDate ? new Date(coupon.expiryDate).toLocaleDateString() : 'No expiry'}
+                            </td>
+                            <td className="px-6 py-4 text-sm">
+                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${coupon.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                {coupon.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <button
+                                onClick={() => handleDeleteCoupon(coupon._id)}
+                                className="p-2 hover:bg-secondary rounded-lg transition-colors text-destructive"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                        {coupons.length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="text-center py-10 text-muted-foreground">
+                              No coupons found
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
         </div>
       </main>
+
+      {/* Add Coupon Modal */}
+      {isAddCouponModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-card w-full max-w-md rounded-2xl shadow-xl overflow-hidden"
+          >
+            <div className="p-6 border-b border-border flex items-center justify-between">
+              <h2 className="text-xl font-bold">Create Coupon</h2>
+              <button
+                onClick={() => setIsAddCouponModalOpen(false)}
+                className="p-2 hover:bg-secondary rounded-full transition-colors"
+              >
+                <Plus size={20} className="rotate-45" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateCoupon} className="p-6 space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Coupon Code</label>
+                <input
+                  required
+                  type="text"
+                  value={newCoupon.code}
+                  onChange={(e) => setNewCoupon({ ...newCoupon, code: e.target.value.toUpperCase() })}
+                  placeholder="e.g. SUMMER50"
+                  className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Discount Type</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="discountType"
+                      checked={newCoupon.discountType === 'percentage'}
+                      onChange={() => setNewCoupon({ ...newCoupon, discountType: 'percentage' })}
+                      className="w-4 h-4 text-primary"
+                    />
+                    <span className="text-sm">Percentage (%)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="discountType"
+                      checked={newCoupon.discountType === 'fixed'}
+                      onChange={() => setNewCoupon({ ...newCoupon, discountType: 'fixed' })}
+                      className="w-4 h-4 text-primary"
+                    />
+                    <span className="text-sm">Fixed Amount (₹)</span>
+                  </label>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  {newCoupon.discountType === 'percentage' ? 'Discount Percentage (%)' : 'Discount Amount (₹)'}
+                </label>
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  max={newCoupon.discountType === 'percentage' ? 100 : undefined}
+                  value={newCoupon.discountValue}
+                  onChange={(e) => setNewCoupon({ ...newCoupon, discountValue: parseInt(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Minimum Order Amount (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={newCoupon.minOrderAmount}
+                  onChange={(e) => setNewCoupon({ ...newCoupon, minOrderAmount: parseInt(e.target.value) })}
+                  className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Expiry Date (Optional)</label>
+                <input
+                  type="date"
+                  value={newCoupon.expiryDate}
+                  onChange={(e) => setNewCoupon({ ...newCoupon, expiryDate: e.target.value })}
+                  className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div className="pt-4">
+                <button
+                  disabled={loading}
+                  type="submit"
+                  className="w-full btn-primary py-3 flex items-center justify-center gap-2"
+                >
+                  {loading ? 'Creating...' : 'Create Coupon'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
 
       <Footer />
 

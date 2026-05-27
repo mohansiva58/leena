@@ -95,7 +95,7 @@ function createApp(): Application {
     });
 
     app.use('/api/users', authLimiter);
-    app.use('/api/', generalLimiter);
+    app.use('/api', generalLimiter);
 
     const webhookLimiter = rateLimit({
         windowMs: 60 * 1000,
@@ -154,9 +154,9 @@ function createApp(): Application {
     app.use('/users', userRoutes);
     app.use('/admin', adminRoutes);
     app.use('/sales', salesRoutes);
-    app.use('/coupons', couponRoutes);
 
     // ============ API ROUTES (with /api prefix) ============
+    app.use('/api/coupons', couponRoutes);
     app.use('/api/products', productRoutes);
     app.use('/api/cart', cartRoutes);
     app.use('/api/orders', orderRoutes);
@@ -164,7 +164,6 @@ function createApp(): Application {
     app.use('/api/users', userRoutes);
     app.use('/api/admin', adminRoutes);
     app.use('/api/sales', salesRoutes);
-    app.use('/api/coupons', couponRoutes);
 
     // Error handling
     app.use(notFoundHandler);

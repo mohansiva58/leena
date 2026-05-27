@@ -229,10 +229,11 @@ export default function AdminPage() {
     try {
       setLoading(true);
       const response = await couponService.getAllCoupons();
-      setCoupons(response);
+      setCoupons(Array.isArray(response) ? response : []);
     } catch (error) {
       console.error('Failed to fetch coupons:', error);
       toast.error('Failed to load coupons');
+      setCoupons([]);
     } finally {
       setLoading(false);
     }
@@ -980,7 +981,7 @@ export default function AdminPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
-                        {coupons.filter(c =>
+                        {(Array.isArray(coupons) ? coupons : []).filter(c =>
                           c.code.toLowerCase().includes(searchQuery.toLowerCase())
                         ).map((coupon) => (
                           <tr key={coupon._id} className="hover:bg-secondary/50 transition-colors">

@@ -285,20 +285,51 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
 
             {/* Print Styles */}
             <style>{`
+              .print-section {
+                display: none;
+              }
+
               @media print {
+                @page {
+                  size: ${printMode === 'label' ? '4in 6in' : 'A4'};
+                  margin: ${printMode === 'label' ? '0' : '12mm'};
+                }
+
+                html,
+                body {
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  background: white !important;
+                }
+
                 body * {
                   visibility: hidden;
                 }
+
                 .print-section,
                 .print-section * {
                   visibility: visible;
                 }
+
                 .print-section {
+                  display: block !important;
                   position: absolute;
                   left: 0;
                   top: 0;
                   width: 100%;
+                  background: white;
+                  color: black;
                 }
+
+                .print-page {
+                  display: block !important;
+                  box-sizing: border-box;
+                  margin: 0 auto;
+                  background: white;
+                  color: black;
+                  page-break-after: avoid;
+                }
+
                 .no-print {
                   display: none !important;
                 }
@@ -321,14 +352,13 @@ interface PrintContentProps {
 
 function PrintContent({ order, printMode }: PrintContentProps) {
   return (
-    <div className="print-section hidden" style={{ fontSize: '12pt', fontFamily: 'Arial, sans-serif' }}>
+    <div className="print-section" style={{ fontSize: '12pt', fontFamily: 'Arial, sans-serif' }}>
       {printMode === 'label' ? (
         // Shipping Label - A6 format (4x6 inches)
-        <div style={{
+        <div className="print-page" style={{
           width: '4in',
           height: '6in',
           padding: '0.25in',
-          pageBreakAfter: 'always',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
@@ -376,7 +406,7 @@ function PrintContent({ order, printMode }: PrintContentProps) {
         </div>
       ) : (
         // Full Order Details - Standard A4
-        <div style={{ width: '210mm', padding: '20mm', margin: '0' }}>
+        <div className="print-page" style={{ width: '186mm', padding: '0', margin: '0 auto' }}>
           {/* Header */}
           <div style={{ textAlign: 'center', marginBottom: '20mm', borderBottom: '2px solid black', paddingBottom: '10mm' }}>
             <div style={{ fontSize: '28pt', fontWeight: 'bold' }}>Leena</div>

@@ -94,9 +94,6 @@ function createApp(): Application {
         legacyHeaders: false,
     });
 
-    app.use('/api/users', authLimiter);
-    app.use('/api', generalLimiter);
-
     const webhookLimiter = rateLimit({
         windowMs: 60 * 1000,
         max: 500,
@@ -145,8 +142,27 @@ function createApp(): Application {
         });
     });
 
+    // ============ API ROUTES (with /api prefix) ============
+    const apiRouter = express.Router();
+    
+    // Apply limiters to the apiRouter
+    apiRouter.use('/users', authLimiter);
+    apiRouter.use(generalLimiter);
+
+    // Register routes on the apiRouter
+    apiRouter.use('/coupons', couponRoutes);
+    apiRouter.use('/products', productRoutes);
+    apiRouter.use('/cart', cartRoutes);
+    apiRouter.use('/orders', orderRoutes);
+    apiRouter.use('/payment', paymentRoutes);
+    apiRouter.use('/users', userRoutes);
+    apiRouter.use('/admin', adminRoutes);
+    apiRouter.use('/sales', salesRoutes);
+
+    // Mount the apiRouter at /api
+    app.use('/api', apiRouter);
+
     // ============ LEGACY ROUTES (without /api prefix) ============
-    // Register BEFORE /api routes to ensure they match first
     app.use('/products', productRoutes);
     app.use('/cart', cartRoutes);
     app.use('/orders', orderRoutes);
@@ -154,16 +170,7 @@ function createApp(): Application {
     app.use('/users', userRoutes);
     app.use('/admin', adminRoutes);
     app.use('/sales', salesRoutes);
-
-    // ============ API ROUTES (with /api prefix) ============
-    app.use('/api/coupons', couponRoutes);
-    app.use('/api/products', productRoutes);
-    app.use('/api/cart', cartRoutes);
-    app.use('/api/orders', orderRoutes);
-    app.use('/api/payment', paymentRoutes);
-    app.use('/api/users', userRoutes);
-    app.use('/api/admin', adminRoutes);
-    app.use('/api/sales', salesRoutes);
+    app.use('/coupons', couponRoutes);
 
     // Error handling
     app.use(notFoundHandler);

@@ -60,6 +60,7 @@ export const deleteCoupon = async (req: AuthRequest, res: Response): Promise<voi
 export const validateCoupon = async (req: Request, res: Response): Promise<void> => {
     try {
         const { code, orderAmount } = req.body;
+        console.log(`🔍 Validating coupon: ${code} for amount: ${orderAmount}`);
         if (!code) {
             res.status(400).json({ error: 'Coupon code is required' });
             return;

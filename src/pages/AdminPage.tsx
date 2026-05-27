@@ -103,6 +103,19 @@ interface Product {
   originalPrice?: number;
 }
 
+const normalizeList = <T,>(value: unknown, keys: string[] = []): T[] => {
+  if (Array.isArray(value)) return value as T[];
+
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    for (const key of ['items', ...keys]) {
+      if (Array.isArray(record[key])) return record[key] as T[];
+    }
+  }
+
+  return [];
+};
+
 export default function AdminPage() {
   const { user, isAuthenticated, loading: authLoading, signOut } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -170,10 +183,11 @@ export default function AdminPage() {
       setLoading(true);
       // Add cache-busting parameter to force fresh data
       const response = await api.get(`/products?_=${Date.now()}`);
-      setProducts(response.data);
+      setProducts(normalizeList<Product>(response.data, ['products']));
     } catch (error) {
       console.error('Failed to fetch products:', error);
       toast.error('Failed to load products');
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -183,11 +197,11 @@ export default function AdminPage() {
     try {
       setLoading(true);
       const response = await api.get('/admin/orders');
-      const list = response.data?.orders ?? response.data;
-      setOrders(Array.isArray(list) ? list : []);
+      setOrders(normalizeList<Order>(response.data, ['orders']));
     } catch (error) {
       console.error('Failed to fetch orders:', error);
       toast.error('Failed to load orders');
+      setOrders([]);
     } finally {
       setLoading(false);
     }
@@ -206,10 +220,11 @@ export default function AdminPage() {
     try {
       setLoading(true);
       const response = await saleService.getAllSales();
-      setSales(response);
+      setSales(normalizeList<Sale>(response, ['sales']));
     } catch (error) {
       console.error('Failed to fetch sales:', error);
       toast.error('Failed to load sales');
+      setSales([]);
     } finally {
       setLoading(false);
     }
@@ -218,10 +233,11 @@ export default function AdminPage() {
   const fetchSaleModes = async () => {
     try {
       const response = await saleService.getAllSaleModes();
-      setSaleModes(response);
+      setSaleModes(normalizeList<SaleMode>(response, ['saleModes', 'modes']));
     } catch (error) {
       console.error('Failed to fetch sale modes:', error);
       toast.error('Failed to load sale modes');
+      setSaleModes([]);
     }
   };
 
@@ -229,7 +245,7 @@ export default function AdminPage() {
     try {
       setLoading(true);
       const response = await couponService.getAllCoupons();
-      setCoupons(Array.isArray(response) ? response : []);
+      setCoupons(normalizeList<Coupon>(response, ['coupons']));
     } catch (error) {
       console.error('Failed to fetch coupons:', error);
       toast.error('Failed to load coupons');
@@ -401,9 +417,9 @@ export default function AdminPage() {
     }
   };
 
-  const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.category.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredProducts = normalizeList<Product>(products).filter(p =>
+    p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.category?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (authLoading || !adminChecked) {

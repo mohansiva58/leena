@@ -34,6 +34,7 @@ interface Order {
   discount?: number;
   couponCode?: string;
   total: number;
+  shipping?: number;
   paymentMethod?: 'razorpay' | 'cod';
   paymentStatus: string;
   orderStatus: string;
@@ -54,6 +55,29 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
   const [printMode, setPrintMode] = useState<'full' | 'label'>('full');
 
   if (!isOpen || !order) return null;
+
+  const items = Array.isArray(order.items) ? order.items : [];
+  const shippingAddress = order.shippingAddress || {
+    fullName: 'N/A',
+    phone: 'N/A',
+    address: 'N/A',
+    city: 'N/A',
+    state: 'N/A',
+    pincode: 'N/A',
+  };
+  const formatCurrency = (value: unknown) =>
+    `₹${Number(value || 0).toLocaleString('en-IN')}`;
+  const formatStatus = (status: string | undefined) => {
+    if (!status) return 'Unknown';
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
+  order.items = items;
+  order.shippingAddress = shippingAddress;
+  order.subtotal = Number(order.subtotal || 0);
+  order.discount = Number(order.discount || 0);
+  order.total = Number(order.total || 0);
+  order.shipping = Number(order.shipping || 0);
 
   const handlePrint = (mode: 'full' | 'label') => {
     setPrintMode(mode);
@@ -114,7 +138,7 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                       Order Status
                     </label>
                     <span className={`inline-block px-4 py-2 rounded-lg font-medium border ${getStatusColor(order.orderStatus)}`}>
-                      {order.orderStatus.charAt(0).toUpperCase() + order.orderStatus.slice(1)}
+                      {formatStatus(order.orderStatus)}
                     </span>
                   </div>
                   <div className="flex-1 min-w-[200px]">
@@ -122,7 +146,7 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                       Payment Status
                     </label>
                     <span className={`inline-block px-4 py-2 rounded-lg font-medium border ${getStatusColor(order.paymentStatus)}`}>
-                      {order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)}
+                      {formatStatus(order.paymentStatus)}
                     </span>
                   </div>
                   <div className="flex-1 min-w-[200px]">
@@ -158,19 +182,19 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                     <h3 className="font-semibold text-lg">Shipping Address</h3>
                   </div>
                   <div className="space-y-2 text-sm">
-                    <p className="font-bold text-foreground">{order.shippingAddress.fullName}</p>
-                    <p className="text-foreground">{order.shippingAddress.address}</p>
+                    <p className="font-bold text-foreground">{shippingAddress.fullName}</p>
+                    <p className="text-foreground">{shippingAddress.address}</p>
                     <p className="text-foreground">
-                      {order.shippingAddress.city}, {order.shippingAddress.state} - {order.shippingAddress.pincode}
+                      {shippingAddress.city}, {shippingAddress.state} - {shippingAddress.pincode}
                     </p>
                     <div className="flex items-center gap-2 pt-2 border-t border-blue-200 dark:border-blue-800">
                       <Phone size={16} />
-                      <span className="text-foreground">{order.shippingAddress.phone}</span>
+                      <span className="text-foreground">{shippingAddress.phone}</span>
                     </div>
-                    {order.shippingAddress.email && (
+                    {shippingAddress.email && (
                       <div className="flex items-center gap-2">
                         <Mail size={16} />
-                        <span className="text-foreground">{order.shippingAddress.email}</span>
+                        <span className="text-foreground">{shippingAddress.email}</span>
                       </div>
                     )}
                   </div>
@@ -183,21 +207,27 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                     <h3 className="font-semibold text-lg">Order Items</h3>
                   </div>
                   <div className="space-y-3">
-                    {order.items.map((item, idx) => (
+                    {items.map((item, idx) => {
+                      const price = Number(item.price || 0);
+                      const quantity = Number(item.quantity || 0);
+                      item.price = price;
+                      item.quantity = quantity;
+
+                      return (
                       <div key={idx} className="flex gap-4 p-4 bg-secondary/30 rounded-lg border border-border">
                         <div className="w-20 h-24 rounded-lg overflow-hidden bg-secondary flex-shrink-0">
                           <img
                             src={item.variantImage || item.image}
-                            alt={item.name}
+                            alt={item.name || 'Order item'}
                             className="w-full h-full object-cover"
                           />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-foreground mb-1">{item.name}</p>
+                          <p className="font-semibold text-foreground mb-1">{item.name || 'Unnamed item'}</p>
                           <div className="text-sm text-muted-foreground space-y-1">
-                            <p>Size: <span className="font-medium text-foreground">{item.size}</span></p>
+                            <p>Size: <span className="font-medium text-foreground">{item.size || 'N/A'}</span></p>
                             {item.color && <p>Color: <span className="font-medium text-foreground">{item.color}</span></p>}
-                            <p>Qty: <span className="font-medium text-foreground">{item.quantity}</span></p>
+                            <p>Qty: <span className="font-medium text-foreground">{quantity || 'N/A'}</span></p>
                             <p>Price: <span className="font-medium text-foreground">₹{item.price.toLocaleString()}</span></p>
                           </div>
                         </div>
@@ -205,7 +235,7 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                           <p className="font-bold text-lg text-primary">₹{(item.price * item.quantity).toLocaleString()}</p>
                         </div>
                       </div>
-                    ))}
+                    )})}
                   </div>
                 </div>
 

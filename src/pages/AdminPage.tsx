@@ -84,6 +84,27 @@ const statusColors: Record<string, string> = {
 
 type TabType = 'dashboard' | 'orders' | 'products' | 'sales' | 'coupons';
 
+const orderTransitions: Record<string, string[]> = {
+  pending: ['confirmed', 'processing', 'cancelled'],
+  confirmed: ['processing', 'cancelled'],
+  processing: ['shipped', 'cancelled'],
+  shipped: ['delivered'],
+  delivered: [],
+  cancelled: [],
+};
+
+const orderStatusLabels: Record<string, string> = {
+  pending: 'Pending',
+  confirmed: 'Confirmed',
+  processing: 'Processing',
+  shipped: 'Shipped',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
+};
+
+const formatCurrency = (value: unknown) =>
+  `₹${Number(value || 0).toLocaleString('en-IN')}`;
+
 // Interface for Product from API
 interface Product {
   _id: string;
@@ -296,9 +317,9 @@ export default function AdminPage() {
       toast.success(`Order status updated to ${newStatus}`);
       fetchOrders(); // Refresh
       fetchStats();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Update status error:', error);
-      toast.error('Failed to update order status');
+      toast.error(error.response?.data?.error || 'Failed to update order status');
     }
   };
 
@@ -548,7 +569,7 @@ export default function AdminPage() {
               {/* Stats Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
                 {[
-                  { label: 'Total Revenue', value: stats ? `₹${stats.totalRevenue.toLocaleString()}` : '-', icon: IndianRupee, color: 'text-primary' },
+                  { label: 'Total Revenue', value: stats ? formatCurrency(stats.totalRevenue) : '-', icon: IndianRupee, color: 'text-primary' },
                   { label: 'Total Orders', value: stats ? stats.totalOrders : '-', icon: ShoppingCart, color: 'text-primary' },
                   { label: 'Total Users', value: stats ? stats.totalUsers : '-', icon: Users, color: 'text-primary' },
                   { label: 'Catalog products', value: stats ? (stats.totalProducts ?? products.length) : '-', icon: Package, color: 'text-primary' },
@@ -618,20 +639,24 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {orders.map((order) => (
+                    {orders.map((order) => {
+                      const allowedStatuses = orderTransitions[order.orderStatus] || [];
+                      const statusOptions = [order.orderStatus, ...allowedStatuses].filter(Boolean);
+
+                      return (
                       <tr key={order.orderId} className="hover:bg-secondary/50">
-                        <td className="px-6 py-4 font-mono text-sm">{order.orderId}</td>
+                        <td className="px-6 py-4 font-mono text-sm">{order.orderId || 'N/A'}</td>
                         <td className="px-6 py-4">
                           <div className="text-sm font-medium">{order.shippingAddress?.fullName || 'N/A'}</div>
-                          <div className="text-xs text-muted-foreground">{order.userEmail}</div>
+                          <div className="text-xs text-muted-foreground">{order.userEmail || 'N/A'}</div>
                         </td>
                         <td className="px-6 py-4 text-sm text-muted-foreground">
-                          {new Date(order.createdAt).toLocaleDateString()}
+                          {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}
                         </td>
-                        <td className="px-6 py-4 font-medium">₹{order.total.toLocaleString()}</td>
+                        <td className="px-6 py-4 font-medium">{formatCurrency(order.total)}</td>
                         <td className="px-6 py-4">
                           <span className={`px-2 py-1 text-xs font-medium rounded-full ${order.orderStatus === 'delivered' ? 'bg-primary text-primary-foreground' : order.orderStatus === 'cancelled' ? 'bg-destructive text-destructive-foreground' : 'bg-secondary text-foreground'}`}>
-                            {order.orderStatus.toUpperCase()}
+                            {(orderStatusLabels[order.orderStatus] || order.orderStatus || 'Unknown').toUpperCase()}
                           </span>
                         </td>
                         <td className="px-6 py-4 flex gap-2">
@@ -650,15 +675,15 @@ export default function AdminPage() {
                             onChange={(e) => handleUpdateOrderStatus(order.orderId, e.target.value)}
                             disabled={order.orderStatus === 'cancelled' || order.orderStatus === 'delivered'}
                           >
-                            <option value="confirmed">Confirmed</option>
-                            <option value="processing">Processing</option>
-                            <option value="shipped">Shipped</option>
-                            <option value="delivered">Delivered</option>
-                            <option value="cancelled">Cancelled</option>
+                            {statusOptions.map((status) => (
+                              <option key={status} value={status}>
+                                {orderStatusLabels[status] || status}
+                              </option>
+                            ))}
                           </select>
                         </td>
                       </tr>
-                    ))}
+                    )})}
                     {orders.length === 0 && !loading && (
                       <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No orders found</td></tr>
                     )}
@@ -744,7 +769,7 @@ export default function AdminPage() {
                               </div>
                             </td>
                             <td className="px-6 py-4 text-sm text-muted-foreground">{product.category}</td>
-                            <td className="px-6 py-4 text-sm font-medium">₹{product.price.toLocaleString()}</td>
+                            <td className="px-6 py-4 text-sm font-medium">{formatCurrency(product.price)}</td>
                             <td className="px-6 py-4 text-sm">⭐ {product.rating}</td>
                             <td className="px-6 py-4">
                               {product.newArrival && (
@@ -907,7 +932,7 @@ export default function AdminPage() {
                               </div>
                             </td>
                             <td className="px-6 py-4 text-sm text-muted-foreground">{sale.category}</td>
-                            <td className="px-6 py-4 text-sm font-medium">₹{sale.price.toLocaleString()}</td>
+                            <td className="px-6 py-4 text-sm font-medium">{formatCurrency(sale.price)}</td>
                             <td className="px-6 py-4 text-sm">
                               {sale.discount ? (
                                 <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary text-primary-foreground">

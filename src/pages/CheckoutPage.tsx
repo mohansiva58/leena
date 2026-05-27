@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ChevronLeft, CreditCard, Check, AlertCircle, Plus, Pencil } from 'lucide-react';
+import { ChevronLeft, CreditCard, Check, AlertCircle, Plus, Pencil, Trash2 } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { AuthModal } from '@/components/AuthModal';
@@ -18,7 +18,7 @@ type PaymentMethod = 'razorpay';
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { items, getTotalPrice, clearCart } = useCartStore();
+  const { items, getTotalPrice, clearCart, removeItem } = useCartStore();
   const { isAuthenticated, user } = useAuth();
   const { initiatePayment } = useRazorpayCheckout();
   const [step, setStep] = useState(1);
@@ -60,7 +60,15 @@ export default function CheckoutPage() {
     : 0;
   const total = subtotal - discountAmount;
 
-  const handleApplyCoupon = async () => {
+  // If cart becomes empty during checkout, go back to shop
+  useEffect(() => {
+    if (items.length === 0 && step !== 3) {
+      navigate('/shop');
+    }
+  }, [items, step, navigate]);
+
+  const handleApplyCoupon = async (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
     if (!couponCode.trim()) return;
     try {
       setCouponLoading(true);
@@ -635,8 +643,19 @@ export default function CheckoutPage() {
                             <p>Qty: <span className="font-medium text-foreground">{item.quantity}</span></p>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right flex flex-col justify-between items-end">
                           <p className="font-bold text-sm text-primary">₹{(item.product.price * item.quantity).toLocaleString()}</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              removeItem(item.product._id, item.size, item.color);
+                              toast.success('Item removed from cart');
+                            }}
+                            className="p-1 text-muted-foreground hover:text-destructive transition-colors mt-2"
+                            title="Remove item"
+                          >
+                            <Trash2 size={16} />
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -660,6 +679,7 @@ export default function CheckoutPage() {
                           className={`flex-1 px-4 py-2 bg-background rounded-lg border focus:outline-none focus:ring-2 focus:ring-primary uppercase ${couponError ? 'border-destructive' : 'border-border'}`}
                         />
                         <button
+                          type="button"
                           onClick={handleApplyCoupon}
                           disabled={couponLoading || !couponCode.trim()}
                           className="px-6 py-2 btn-primary rounded-lg text-sm font-medium disabled:opacity-50"
@@ -693,6 +713,7 @@ export default function CheckoutPage() {
                         </div>
                       </div>
                       <button
+                        type="button"
                         onClick={removeCoupon}
                         className="text-xs text-destructive font-medium hover:underline"
                       >
@@ -727,12 +748,14 @@ export default function CheckoutPage() {
 
                 <div className="flex gap-4">
                   <button
+                    type="button"
                     onClick={() => setStep(1)}
                     className="flex-1 px-6 py-4 bg-secondary rounded-lg font-semibold hover:bg-secondary/80 transition-colors"
                   >
                     Back
                   </button>
                   <button
+                    type="button"
                     onClick={handlePlaceOrder}
                     disabled={isProcessing}
                     className="flex-1 btn-primary py-4 font-semibold disabled:opacity-50"

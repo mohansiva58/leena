@@ -3,6 +3,38 @@ import { AuthRequest } from '../middleware/auth';
 import { getRazorpayInstance, verifyRazorpaySignature } from '../config/razorpay';
 import { generateOrderId } from '../utils/helpers';
 
+type RazorpayApiError = {
+    statusCode?: number;
+    status?: number;
+    code?: string;
+    message?: string;
+    error?: {
+        code?: string;
+        description?: string;
+    };
+    response?: {
+        status?: number;
+        data?: {
+            error?: {
+                code?: string;
+                description?: string;
+            };
+        };
+    };
+};
+
+const getRazorpayErrorDetails = (error: unknown) => {
+    const err = error as RazorpayApiError;
+    const statusCode = err.statusCode || err.status || err.response?.status;
+    const apiError = err.error || err.response?.data?.error;
+
+    return {
+        statusCode,
+        code: apiError?.code || err.code,
+        description: apiError?.description || err.message,
+    };
+};
+
 export const createRazorpayOrder = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const userId = req.user?.uid;
@@ -12,16 +44,23 @@ export const createRazorpayOrder = async (req: AuthRequest, res: Response): Prom
         }
 
         const { amount, currency = 'INR' } = req.body;
+        const numericAmount = Number(amount);
 
-        if (!amount || amount <= 0) {
+        if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
             res.status(400).json({ error: 'Valid amount is required' });
+            return;
+        }
+
+        const keyId = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+        if (!keyId) {
+            res.status(503).json({ error: 'Payment gateway is not configured' });
             return;
         }
 
         const razorpay = getRazorpayInstance();
 
         const options = {
-            amount: Math.round(amount * 100), // Convert to paise
+            amount: Math.round(numericAmount * 100), // Convert to paise
             currency,
             receipt: generateOrderId(),
             notes: {
@@ -35,11 +74,23 @@ export const createRazorpayOrder = async (req: AuthRequest, res: Response): Prom
             orderId: order.id,
             amount: order.amount,
             currency: order.currency,
-            keyId: process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+            keyId,
         });
     } catch (error) {
-        console.error('Create Razorpay order error:', error);
-        res.status(500).json({ error: 'Failed to create payment order' });
+        const details = getRazorpayErrorDetails(error);
+        console.error('Create Razorpay order error:', details);
+
+        if (details.statusCode === 401) {
+            res.status(502).json({ error: 'Payment gateway authentication failed. Check Razorpay key ID and secret.' });
+            return;
+        }
+
+        if (details.statusCode) {
+            res.status(502).json({ error: details.description || 'Payment gateway rejected the order request' });
+            return;
+        }
+
+        res.status(503).json({ error: 'Unable to reach payment gateway. Please try again.' });
     }
 };
 

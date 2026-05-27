@@ -3,7 +3,8 @@ import { AuthRequest } from '../middleware/auth';
 import Order from '../models/Order';
 import Cart from '../models/Cart';
 import PaymentClaim from '../models/PaymentClaim';
-import { generateOrderId, calculateShipping, validatePhone, validatePincode } from '../utils/helpers';
+import Coupon from '../models/Coupon';
+import { generateOrderId, validatePhone, validatePincode } from '../utils/helpers';
 import { sendOrderConfirmationEmail, sendOrderStatusUpdateEmail } from '../config/email';
 import { cacheDel } from '../utils/cache';
 import {
@@ -61,6 +62,7 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
         razorpayOrderId,
         razorpayPaymentId,
         razorpaySignature,
+        couponCode,
     } = req.body;
 
     try {
@@ -117,8 +119,24 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
             return;
         }
 
-        const shipping = calculateShipping(subtotal, shippingAddress.state);
-        const total = subtotal + shipping;
+        let discount = 0;
+        if (couponCode) {
+            const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true });
+            if (coupon) {
+                const isExpired = coupon.expiryDate && new Date(coupon.expiryDate) < new Date();
+                const isMinAmountMet = !coupon.minOrderAmount || subtotal >= coupon.minOrderAmount;
+                
+                if (!isExpired && isMinAmountMet) {
+                    if (coupon.discountType === 'percentage') {
+                        discount = Math.round((subtotal * coupon.discountValue) / 100);
+                    } else {
+                        discount = Math.min(coupon.discountValue, subtotal);
+                    }
+                }
+            }
+        }
+
+        const total = subtotal - discount;
         const totalPaise = Math.round(total * 100);
 
         let paymentStatus: 'pending' | 'paid' | 'failed' | 'cod' = 'pending';
@@ -236,7 +254,8 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
                 })),
                 shippingAddress,
                 subtotal,
-                shipping,
+                discount,
+                couponCode: couponCode ? couponCode.toUpperCase() : undefined,
                 total,
                 paymentMethod,
                 paymentStatus,
@@ -268,7 +287,6 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
                         price: item.price * item.quantity,
                     })),
                     subtotal: order.subtotal,
-                    shipping: order.shipping,
                     total: order.total,
                     paymentMethod: paymentMethod === 'cod' ? 'Cash on Delivery' : 'Online Payment',
                     shippingAddress: order.shippingAddress,

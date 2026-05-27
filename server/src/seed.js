@@ -36,7 +36,6 @@ const ProductSchema = new mongoose.Schema(
         newArrival: { type: Boolean, default: false },
         isBestseller: { type: Boolean, default: false },
         stock: { type: Number, default: 100, min: 0 },
-        weight: { type: Number, min: 0 },
         setType: { type: String },
         colors: [{
             colorName: { type: String, required: true },
@@ -77,7 +76,6 @@ const SaleSchema = new mongoose.Schema(
         stock: { type: Number, min: 0, default: 100 },
         discount: { type: Number, min: 0, max: 100 },
         saleMode: { type: String, required: true, index: true },
-        weight: { type: Number, min: 0 },
         setType: { type: String },
         colors: [{
             colorName: { type: String, required: true },

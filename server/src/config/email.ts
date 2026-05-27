@@ -51,7 +51,6 @@ interface OrderEmailData {
     price: number;
   }>;
   subtotal: number;
-  shipping: number;
   total: number;
   paymentMethod: string;
   shippingAddress: {
@@ -123,10 +122,6 @@ export const sendOrderConfirmationEmail = async (data: OrderEmailData): Promise<
                 <tr>
                   <td colspan="3" style="padding: 10px; text-align: right;"><strong>Subtotal:</strong></td>
                   <td style="padding: 10px; text-align: right;">₹${data.subtotal.toLocaleString()}</td>
-                </tr>
-                <tr>
-                  <td colspan="3" style="padding: 10px; text-align: right;"><strong>Shipping:</strong></td>
-                  <td style="padding: 10px; text-align: right;">${data.shipping === 0 ? 'FREE' : `₹${data.shipping}`}</td>
                 </tr>
                 <tr style="background: #f0f0f0;">
                   <td colspan="3" style="padding: 15px; text-align: right; font-size: 18px;"><strong>Total:</strong></td>

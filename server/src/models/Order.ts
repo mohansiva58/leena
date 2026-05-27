@@ -28,7 +28,8 @@ export interface IOrder extends Document {
     items: IOrderItem[];
     shippingAddress: IShippingAddress;
     subtotal: number;
-    shipping: number;
+    discount: number;
+    couponCode?: string;
     total: number;
     paymentMethod: 'razorpay' | 'cod';
     paymentStatus: 'pending' | 'paid' | 'failed' | 'cod';
@@ -75,7 +76,8 @@ const OrderSchema: Schema = new Schema(
         items: [OrderItemSchema],
         shippingAddress: { type: ShippingAddressSchema, required: true },
         subtotal: { type: Number, required: true, min: 0 },
-        shipping: { type: Number, required: true, min: 0 },
+        discount: { type: Number, default: 0, min: 0 },
+        couponCode: { type: String },
         total: { type: Number, required: true, min: 0 },
         paymentMethod: { type: String, enum: ['razorpay', 'cod'], required: true },
         paymentStatus: {

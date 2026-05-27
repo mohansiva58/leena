@@ -26,6 +26,7 @@ import paymentRoutes from './routes/payment';
 import userRoutes from './routes/users';
 import adminRoutes from './routes/admin';
 import salesRoutes from './routes/sales';
+import couponRoutes from './routes/coupons';
 
 // Import middleware
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
@@ -153,6 +154,7 @@ function createApp(): Application {
     app.use('/users', userRoutes);
     app.use('/admin', adminRoutes);
     app.use('/sales', salesRoutes);
+    app.use('/coupons', couponRoutes);
 
     // ============ API ROUTES (with /api prefix) ============
     app.use('/api/products', productRoutes);
@@ -162,6 +164,7 @@ function createApp(): Application {
     app.use('/api/users', userRoutes);
     app.use('/api/admin', adminRoutes);
     app.use('/api/sales', salesRoutes);
+    app.use('/api/coupons', couponRoutes);
 
     // Error handling
     app.use(notFoundHandler);

@@ -654,7 +654,7 @@ export default function CheckoutPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              removeItem(item.product._id, item.size, item.color);
+                              removeItem(getProductId(item.product), item.size, item.variantImage, item.color);
                               toast.success('Item removed from cart');
                             }}
                             className="p-1 text-muted-foreground hover:text-destructive transition-colors mt-2"

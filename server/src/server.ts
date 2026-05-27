@@ -31,6 +31,7 @@ import couponRoutes from './routes/coupons';
 // Import middleware
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { razorpayWebhook } from './controllers/paymentWebhookController';
+import { validateCoupon } from './controllers/couponController';
 
 const PORT = Number(process.env.PORT || 5000);
 
@@ -109,45 +110,32 @@ function createApp(): Application {
     app.use(express.json({ limit: '10mb' }));
     app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-    app.use('/api/payment', paymentLimiter);
-
     // Compression middleware
     app.use(compression());
 
-    // Request timeout — prevents hanging requests from consuming connections
+    // Request timeout
     app.use((req: Request, _res: Response, next: NextFunction) => {
-        req.setTimeout(30000); // 30 seconds
+        req.setTimeout(30000);
         next();
     });
 
-    // Logging middleware
+    // Logging
     if (process.env.NODE_ENV === 'development') {
         app.use(morgan('dev'));
     } else {
         app.use(morgan('combined'));
     }
 
-    // Health check endpoint
+    // Health check
     app.get('/health', async (_req, res) => {
-        const { getRedisClient } = await import('./config/redis');
-        const redis = getRedisClient();
-        res.json({
-            status: 'OK',
-            version: '2.1.0',
-            timestamp: new Date().toISOString(),
-            uptime: process.uptime(),
-            pid: process.pid,
-            redis: redis ? 'connected' : 'disabled_or_down',
-            env: process.env.NODE_ENV || 'development',
-        });
+        res.json({ status: 'OK', timestamp: new Date().toISOString() });
     });
 
     // ============ API ROUTES (with /api prefix) ============
-    // Rate limiters for API
-    app.use('/api/users', authLimiter);
-    app.use('/api', generalLimiter);
+    // Specific direct registration for problematic route
+    app.post('/api/coupons/validate', validateCoupon);
 
-    // Mount routes directly on /api prefix
+    // Standard route registration
     app.use('/api/coupons', couponRoutes);
     app.use('/api/products', productRoutes);
     app.use('/api/cart', cartRoutes);
@@ -156,6 +144,11 @@ function createApp(): Application {
     app.use('/api/users', userRoutes);
     app.use('/api/admin', adminRoutes);
     app.use('/api/sales', salesRoutes);
+
+    // Limiters
+    app.use('/api/payment', paymentLimiter);
+    app.use('/api/users', authLimiter);
+    app.use('/api', generalLimiter);
 
     // ============ LEGACY ROUTES (without /api prefix) ============
     app.use('/products', productRoutes);

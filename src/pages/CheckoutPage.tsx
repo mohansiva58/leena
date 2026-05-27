@@ -16,6 +16,15 @@ import { toast } from 'sonner';
 
 type PaymentMethod = 'razorpay';
 
+const normalizeIndianPhone = (phone: string) => {
+  let digits = phone.replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2);
+  if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+  return digits;
+};
+
+const isValidIndianPhone = (phone: string) => /^[6-9]\d{9}$/.test(normalizeIndianPhone(phone));
+
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { items, getTotalPrice, clearCart, removeItem } = useCartStore();
@@ -185,9 +194,10 @@ export default function CheckoutPage() {
     if (savedAddressId) return;
 
     try {
+      const phone = normalizeIndianPhone(formData.phone);
       const userResponse = await userService.addAddress({
         ...formData,
-        phone: formData.phone.replace(/\s/g, ''),
+        phone,
         pincode: formData.pincode.trim(),
         isDefault: true,
       });
@@ -210,6 +220,10 @@ export default function CheckoutPage() {
       toast.error('Pincode must be 6 digits');
       return;
     }
+    if (!isValidIndianPhone(formData.phone)) {
+      toast.error('Enter a valid 10-digit Indian mobile number');
+      return;
+    }
     if (!policyAccepted) {
       toast.error('Please accept the return policy');
       return;
@@ -227,6 +241,13 @@ export default function CheckoutPage() {
     setIsProcessing(true);
 
     try {
+      if (!isValidIndianPhone(formData.phone)) {
+        toast.error('Enter a valid 10-digit Indian mobile number');
+        setIsProcessing(false);
+        return;
+      }
+
+      const phone = normalizeIndianPhone(formData.phone);
       const orderData = {
         items: items.map(item => {
           const productId = getProductId(item.product);
@@ -247,7 +268,7 @@ export default function CheckoutPage() {
         }),
         shippingAddress: {
           ...formData,
-          phone: formData.phone.replace(/\s/g, ''),
+          phone,
           pincode: formData.pincode.trim(),
         },
         paymentMethod,
@@ -454,9 +475,14 @@ export default function CheckoutPage() {
                         name="phone"
                         value={formData.phone}
                         onChange={handleInputChange}
+                        placeholder="10-digit mobile number"
+                        maxLength={16}
                         required
                         className="w-full px-4 py-3 bg-secondary rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
                       />
+                      {formData.phone && !isValidIndianPhone(formData.phone) && (
+                        <p className="text-orange-600 text-xs mt-1">Enter a valid Indian mobile number</p>
+                      )}
                     </div>
                   </div>
 

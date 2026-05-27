@@ -10,8 +10,12 @@ export const validatePincode = (pincode: string): boolean => {
 };
 
 export const validatePhone = (phone: string): boolean => {
-    // Indian phone number validation (10 digits with optional +91)
-    return /^(\+91)?[6-9]\d{9}$/.test(phone.replace(/\s/g, ''));
+    // Indian mobile number validation. Accepts common input formats such as
+    // 9701630276, +91 97016 30276, 91-97016-30276, and 09701630276.
+    let digits = phone.replace(/\D/g, '');
+    if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2);
+    if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+    return /^[6-9]\d{9}$/.test(digits);
 };
 
 export const formatCurrency = (amount: number): string => {

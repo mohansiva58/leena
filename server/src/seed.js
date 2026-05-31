@@ -1471,16 +1471,8 @@ const seedDatabase = async () => {
 
         await clearRedisCache();
 
-        console.log('Seeding products, sale mode, and sale items...');
-        const [createdProducts, createdSaleModes, createdSales] = await Promise.all([
-            Product.insertMany(products),
-            SaleMode.insertMany(saleModes),
-            Sale.insertMany(sales),
-        ]);
-
-        console.log(`Seeded ${createdProducts.length} products.`);
-        console.log(`Seeded ${createdSaleModes.length} sale mode.`);
-        console.log(`Seeded ${createdSales.length} sale items.`);
+        // Seed data removed - no products, sales, or sale modes will be inserted
+        console.log('Seed database cleared successfully.');
 
         await mongoose.disconnect();
         console.log('Database seeding completed successfully.');

@@ -5,7 +5,7 @@ import { SlidersHorizontal, X, ChevronDown } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { ProductCard } from '@/components/ProductCard';
-import { sizes, Product } from '@/lib/products';
+import { sizes, categories, Product } from '@/lib/products';
 import { productService } from '@/services/productService';
 
 export default function ShopPage() {
@@ -21,6 +21,7 @@ export default function ShopPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [sortBy, setSortBy] = useState('featured');
 
@@ -88,6 +89,14 @@ export default function ShopPage() {
         setLoadingMore(false);
       }
     };
+    
+    // Sync selectedCategory with URL parameter
+    if (categoryParam) {
+      setSelectedCategory(categoryParam);
+    } else {
+      setSelectedCategory(null);
+    }
+    
     setProducts([]);
     setPage(1);
     setHasMore(true);
@@ -138,12 +147,13 @@ export default function ShopPage() {
 
   const clearFilters = () => {
     setSelectedSize(null);
+    setSelectedCategory(null);
     if (search || filterParam || categoryParam) {
       navigate('/shop');
     }
   };
 
-  const activeFiltersCount = selectedSize ? 1 : 0;
+  const activeFiltersCount = (selectedSize ? 1 : 0) + (selectedCategory ? 1 : 0);
   const visibleProducts = Array.isArray(products) ? products : [];
 
   return (
@@ -234,6 +244,33 @@ export default function ShopPage() {
             {/* Desktop Sidebar Filters */}
             <aside className="hidden lg:block w-72 flex-shrink-0">
               <div className="sticky top-24 space-y-8 pr-8">
+                {/* Category */}
+                <div>
+                  <h3 className="font-serif text-xl font-semibold mb-6 pb-2 border-b border-border/50">Categories</h3>
+                  <div className="flex flex-col gap-3">
+                    {categories.map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => {
+                          if (selectedCategory === cat) {
+                            setSelectedCategory(null);
+                            navigate('/shop');
+                          } else {
+                            setSelectedCategory(cat);
+                            navigate(cat === 'All' ? '/shop' : `/shop?category=${encodeURIComponent(cat)}`);
+                          }
+                        }}
+                        className={`px-4 py-2.5 rounded-full text-sm font-medium transition-all text-left ${selectedCategory === cat || (categoryParam === cat)
+                          ? 'bg-primary text-primary-foreground shadow-lg'
+                          : 'bg-secondary/50 text-foreground hover:bg-primary/20 hover:text-primary'
+                          }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Size */}
                 <div>
                   <h3 className="font-serif text-xl font-semibold mb-6 pb-2 border-b border-border/50">Select Size</h3>
@@ -284,6 +321,34 @@ export default function ShopPage() {
                       <button onClick={() => setIsFilterOpen(false)} className="p-2 hover:bg-secondary rounded-full transition-colors">
                         <X size={20} />
                       </button>
+                    </div>
+
+                    {/* Category */}
+                    <div className="mb-10">
+                      <h3 className="font-serif text-lg font-semibold mb-4">Category</h3>
+                      <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
+                        {categories.map((cat) => (
+                          <button
+                            key={cat}
+                            onClick={() => {
+                              if (selectedCategory === cat) {
+                                setSelectedCategory(null);
+                                navigate('/shop');
+                              } else {
+                                setSelectedCategory(cat);
+                                navigate(cat === 'All' ? '/shop' : `/shop?category=${encodeURIComponent(cat)}`);
+                              }
+                              setIsFilterOpen(false);
+                            }}
+                            className={`px-4 py-2.5 rounded-full text-sm font-medium transition-all text-left ${selectedCategory === cat || (categoryParam === cat)
+                              ? 'bg-primary text-primary-foreground shadow-lg'
+                              : 'bg-secondary/30 text-foreground hover:bg-primary/10'
+                              }`}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     {/* Size */}

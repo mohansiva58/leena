@@ -24,6 +24,25 @@ export interface PagedProductResponse {
     hasMore: boolean;
 }
 
+export interface StockCheckItem {
+    productId: string;
+    size: string;
+    quantity: number;
+}
+
+export interface StockCheckResponse {
+    available: boolean;
+    items: Array<{
+        productId: string;
+        size: string;
+        quantity: number;
+        maxAvailable: number;
+        available: boolean;
+        name?: string;
+        image?: string;
+    }>;
+}
+
 export const productService = {
     getAllProducts: async (filters?: ProductFilters): Promise<Product[]> => {
         const params = new URLSearchParams();
@@ -69,6 +88,11 @@ export const productService = {
 
     getFeaturedProducts: async (): Promise<Product[]> => {
         const response = await api.get('/products/featured');
+        return response.data;
+    },
+
+    checkStockAvailability: async (items: StockCheckItem[]): Promise<StockCheckResponse> => {
+        const response = await api.post('/products/check-stock', { items });
         return response.data;
     },
 };

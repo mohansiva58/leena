@@ -610,9 +610,9 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                                     + Add size
                                 </button>
                             </div>
-                            <div className="space-y-3 rounded-xl border border-border bg-secondary/20 p-3">
+                            <div className="rounded-xl border border-border bg-secondary/20 p-3 max-h-64 overflow-y-auto space-y-3">
                                 {sizeRows.map((row, index) => (
-                                    <div key={`${row.size}-${index}`} className="grid grid-cols-[1fr_120px_auto] gap-2 items-center">
+                                    <div key={index} className="grid grid-cols-[1fr_120px_auto] gap-2 items-center">
                                         <input
                                             type="text"
                                             value={row.size}

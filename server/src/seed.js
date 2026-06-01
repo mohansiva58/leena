@@ -1443,42 +1443,43 @@ const clearRedisCache = async () => {
 
 const seedDatabase = async () => {
     try {
-        if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DESTRUCTIVE_SEED !== 'true') {
-            console.error(
-                '[seed] Refusing to run destructive seed in production. Set ALLOW_DESTRUCTIVE_SEED=true only on a disposable database.'
-            );
-            process.exit(1);
+        console.warn('[⚠️  SEED DISABLED] This seed script is disabled for safety.');
+        console.warn('To manually clear all data, set SEED_MODE=clear_all in your environment and re-run.');
+        
+        if (process.env.SEED_MODE === 'clear_all') {
+            if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DESTRUCTIVE_SEED !== 'true') {
+                console.error(
+                    '[SEED ERROR] Refusing to run destructive clear in production. Set ALLOW_DESTRUCTIVE_SEED=true only on a disposable database.'
+                );
+                process.exit(1);
+            }
+
+            const mongoUri = process.env.MONGODB_URI;
+            if (!mongoUri) {
+                throw new Error('MONGODB_URI not found in environment variables');
+            }
+
+            console.log('🗑️  CLEARING all database collections...');
+            await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 10000 });
+            
+            await Promise.all([
+                Product.deleteMany({}),
+                Sale.deleteMany({}),
+                SaleMode.deleteMany({}),
+                Cart.deleteMany({}),
+                Order.deleteMany({}),
+            ]);
+            console.log('✓ Database cleared successfully.');
+
+            await clearRedisCache();
+            await mongoose.disconnect();
+            process.exit(0);
+        } else {
+            console.log('✓ Seed script skipped (disabled by default for safety)');
+            process.exit(0);
         }
-
-        const mongoUri = process.env.MONGODB_URI;
-        if (!mongoUri) {
-            throw new Error('MONGODB_URI not found in environment variables');
-        }
-
-        console.log('Connecting to MongoDB...');
-        await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 10000 });
-        console.log('Connected to MongoDB.');
-
-        console.log('Clearing catalog, sales, carts, and orders...');
-        await Promise.all([
-            Product.deleteMany({}),
-            Sale.deleteMany({}),
-            SaleMode.deleteMany({}),
-            Cart.deleteMany({}),
-            Order.deleteMany({}),
-        ]);
-        console.log('Clean data complete. Users were preserved.');
-
-        await clearRedisCache();
-
-        // Seed data removed - no products, sales, or sale modes will be inserted
-        console.log('Seed database cleared successfully.');
-
-        await mongoose.disconnect();
-        console.log('Database seeding completed successfully.');
-        process.exit(0);
     } catch (error) {
-        console.error('Error seeding database:', error);
+        console.error('Error in seed script:', error);
         await mongoose.disconnect().catch(() => undefined);
         process.exit(1);
     }

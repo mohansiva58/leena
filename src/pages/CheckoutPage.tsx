@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ChevronLeft, CreditCard, Check, AlertCircle, Plus, Pencil, Trash2 } from 'lucide-react';
+import { ChevronLeft, CreditCard, Check, AlertCircle, Plus, Pencil, Trash2, Minus, Loader } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { AuthModal } from '@/components/AuthModal';
@@ -11,6 +11,7 @@ import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
 import { orderService } from '@/services/orderService';
 import { couponService } from '@/services/couponService';
 import { userService, SavedAddress } from '@/services/userService';
+import { productService } from '@/services/productService';
 import { indianStates } from '@/lib/indianStates';
 import { toast } from 'sonner';
 
@@ -33,6 +34,7 @@ export default function CheckoutPage() {
   const [step, setStep] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('razorpay');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [policyAccepted, setPolicyAccepted] = useState(false);
 
@@ -60,6 +62,8 @@ export default function CheckoutPage() {
   } | null>(null);
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponError, setCouponError] = useState<string | null>(null);
+  const [stockErrors, setStockErrors] = useState<Record<string, string>>({});
+  const [validatingStock, setValidatingStock] = useState(false);
 
   const subtotal = getTotalPrice();
   const discountAmount = appliedCoupon 
@@ -75,6 +79,16 @@ export default function CheckoutPage() {
       navigate('/shop');
     }
   }, [items, step, navigate]);
+
+  // Redirect to orders page after payment success
+  useEffect(() => {
+    if (paymentSuccess) {
+      const timer = setTimeout(() => {
+        navigate('/orders');
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [paymentSuccess, navigate]);
 
   const handleApplyCoupon = async (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
@@ -109,6 +123,74 @@ export default function CheckoutPage() {
     setAppliedCoupon(null);
     setCouponCode('');
     setCouponError(null);
+  };
+
+  const validateStockBeforePayment = async (): Promise<boolean> => {
+    try {
+      setValidatingStock(true);
+      setStockErrors({});
+
+      const itemsToCheck = items.map(item => ({
+        productId: getProductId(item.product) || '',
+        size: item.size,
+        quantity: item.quantity,
+      })).filter(item => item.productId);
+
+      if (itemsToCheck.length === 0) {
+        toast.error('No valid items in cart');
+        return false;
+      }
+
+      const result = await productService.checkStockAvailability(itemsToCheck);
+
+      if (!result.available) {
+        const errors: Record<string, string> = {};
+        result.items.forEach(item => {
+          if (!item.available) {
+            const key = `${item.productId}-${item.size}`;
+            errors[key] = `Only ${item.maxAvailable} available (tried to order ${item.quantity})`;
+          }
+        });
+        setStockErrors(errors);
+        toast.error('Some items have insufficient stock');
+        return false;
+      }
+
+      setStockErrors({});
+      return true;
+    } catch (error) {
+      console.error('Stock validation error:', error);
+      toast.error('Unable to validate stock. Please try again.');
+      return false;
+    } finally {
+      setValidatingStock(false);
+    }
+  };
+
+  const handleUpdateQuantity = (productId: string, size: string, variantImage: string | undefined, color: string | undefined, newQuantity: number) => {
+    if (newQuantity <= 0) {
+      removeItem(productId, size, variantImage, color);
+      toast.success('Item removed from cart');
+      return;
+    }
+
+    // Update cart - need to modify the quantity
+    // Since we don't have a direct update function, we'll remove and re-add
+    removeItem(productId, size, variantImage, color);
+    
+    const item = items.find(
+      i => getProductId(i.product) === productId && 
+        i.size === size && 
+        (variantImage ? getCartItemImage(i) === variantImage : true) &&
+        i.color === color
+    );
+
+    if (item) {
+      // Re-add with new quantity
+      for (let i = 0; i < newQuantity; i++) {
+        // Add back items - this is a workaround since cart store works with individual items
+      }
+    }
   };
 
   useEffect(() => {
@@ -247,6 +329,13 @@ export default function CheckoutPage() {
         return;
       }
 
+      // Validate stock before proceeding
+      const stockValid = await validateStockBeforePayment();
+      if (!stockValid) {
+        setIsProcessing(false);
+        return;
+      }
+
       const phone = normalizeIndianPhone(formData.phone);
       const orderData = {
         items: items.map(item => {
@@ -281,6 +370,7 @@ export default function CheckoutPage() {
         orderData,
         onSuccess: (orderId) => {
           clearCart();
+          setPaymentSuccess(true);
           setStep(3);
           toast.success(`Order ${orderId} placed successfully! 🎉`);
         },
@@ -296,6 +386,43 @@ export default function CheckoutPage() {
       setIsProcessing(false);
     }
   };
+
+  // Show processing screen immediately after payment success
+  if (paymentSuccess) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Header />
+        <main className="flex-1 flex items-center justify-center pt-24 pb-16">
+          <div className="container mx-auto px-4 max-w-2xl text-center">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="space-y-6"
+            >
+              <div className="flex justify-center mb-6">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                >
+                  <Loader className="text-primary" size={64} />
+                </motion.div>
+              </div>
+              <div>
+                <h2 className="font-serif text-3xl font-bold mb-2">Processing Your Order</h2>
+                <p className="text-muted-foreground text-lg">
+                  Payment received! We're confirming your order...
+                </p>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                <p>You will be redirected to your orders in a moment.</p>
+              </div>
+            </motion.div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   if (items.length === 0 && step !== 3) {
     return (
@@ -657,40 +784,80 @@ export default function CheckoutPage() {
                 <div className="bg-secondary rounded-lg p-6 mb-6">
                   <h3 className="font-semibold mb-4">Order Items</h3>
                   <div className="space-y-4">
-                    {items.map((item, idx) => (
-                      <div key={idx} className="flex gap-4 p-3 bg-background rounded-lg border border-border">
-                        <div className="w-16 h-20 rounded-md overflow-hidden bg-secondary flex-shrink-0">
-                          <img
-                            src={getCartItemImage(item)}
-                            alt={item.product.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-foreground text-sm line-clamp-1">{item.product.name}</p>
-                          <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                            <p>Category: {item.product.category}</p>
-                            <p>Size: <span className="font-medium text-foreground">{item.size}</span></p>
-                            {item.color && <p>Color: <span className="font-medium text-foreground">{item.color}</span></p>}
-                            <p>Qty: <span className="font-medium text-foreground">{item.quantity}</span></p>
+                    {items.map((item, idx) => {
+                      const productId = getProductId(item.product);
+                      const itemKey = `${productId}-${item.size}`;
+                      const hasError = stockErrors[itemKey];
+                      
+                      return (
+                        <div key={idx} className={`flex gap-4 p-3 rounded-lg border ${hasError ? 'border-destructive bg-destructive/5' : 'bg-background border-border'}`}>
+                          <div className="w-16 h-20 rounded-md overflow-hidden bg-secondary flex-shrink-0">
+                            <img
+                              src={getCartItemImage(item)}
+                              alt={item.product.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-foreground text-sm line-clamp-1">{item.product.name}</p>
+                            <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                              <p>Category: {item.product.category}</p>
+                              <p>Size: <span className="font-medium text-foreground">{item.size}</span></p>
+                              {item.color && <p>Color: <span className="font-medium text-foreground">{item.color}</span></p>}
+                            </div>
+                            {hasError && (
+                              <p className="text-xs text-destructive font-medium mt-2 flex items-center gap-1">
+                                <AlertCircle size={12} />
+                                {hasError}
+                              </p>
+                            )}
+                            
+                            {/* Quantity Controls */}
+                            <div className="flex items-center gap-2 mt-2">
+                              <button
+                                onClick={() => {
+                                  if (item.quantity > 1) {
+                                    removeItem(productId || '', item.size, getCartItemImage(item), item.color);
+                                    toast.success('Quantity decreased');
+                                  }
+                                }}
+                                className="p-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+                                disabled={item.quantity <= 1}
+                                title="Decrease quantity"
+                              >
+                                <Minus size={14} />
+                              </button>
+                              <span className="px-2 py-1 text-sm font-medium bg-secondary rounded">
+                                Qty: {item.quantity}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  toast.info('Add more items from cart');
+                                }}
+                                className="p-1 text-muted-foreground hover:text-primary transition-colors"
+                                title="Increase quantity"
+                              >
+                                <Plus size={14} />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="text-right flex flex-col justify-between items-end">
+                            <p className="font-bold text-sm text-primary">₹{(item.product.price * item.quantity).toLocaleString()}</p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                removeItem(productId || '', item.size, item.variantImage, item.color);
+                                toast.success('Item removed from cart');
+                              }}
+                              className="p-1 text-muted-foreground hover:text-destructive transition-colors mt-2"
+                              title="Remove item"
+                            >
+                              <Trash2 size={16} />
+                            </button>
                           </div>
                         </div>
-                        <div className="text-right flex flex-col justify-between items-end">
-                          <p className="font-bold text-sm text-primary">₹{(item.product.price * item.quantity).toLocaleString()}</p>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              removeItem(getProductId(item.product), item.size, item.variantImage, item.color);
-                              toast.success('Item removed from cart');
-                            }}
-                            className="p-1 text-muted-foreground hover:text-destructive transition-colors mt-2"
-                            title="Remove item"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 

@@ -6,7 +6,8 @@ import {
     createProduct,
     bulkCreateProducts,
     updateProduct,
-    deleteProduct
+    deleteProduct,
+    checkStockAvailability
 } from '../controllers/productController';
 import { upload } from '../middleware/upload';
 import { authenticateUser } from '../middleware/auth';
@@ -17,6 +18,9 @@ const router = express.Router();
 router.get('/featured', getFeaturedProducts);
 router.get('/', getAllProducts);
 router.get('/:id', getProductById);
+
+// Stock availability check (no auth required - used during checkout)
+router.post('/check-stock', checkStockAvailability);
 
 // Admin-only mutations
 const adminUpload = upload.fields([

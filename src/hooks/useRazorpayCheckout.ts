@@ -150,7 +150,7 @@ export const useRazorpayCheckout = () => {
                             razorpaySignature: response.razorpay_signature,
                         });
 
-                        toast.success('Payment successful! Order placed.');
+                        toast.success(`Payment successful! Order ${orderRes.order.orderId} placed.`);
                         onSuccess(orderRes.order.orderId);
                     } catch (error) {
                         console.error('Payment verification failed:', error);

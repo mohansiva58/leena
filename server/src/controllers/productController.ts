@@ -371,3 +371,91 @@ export const deleteProduct = async (req: AuthRequest, res: Response): Promise<vo
         res.status(500).json({ error: errorMessage });
     }
 };
+
+/**
+ * Check stock availability for items before checkout.
+ * POST body: { items: [{ productId, size, quantity }, ...] }
+ * Returns: { available: true/false, items: [{ productId, size, quantity, maxAvailable, name, image }] }
+ */
+export const checkStockAvailability = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { items } = req.body as { items?: Array<{ productId: string; size: string; quantity: number }> };
+
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            res.status(400).json({ error: 'Items array is required' });
+            return;
+        }
+
+        const stockResults: Array<{
+            productId: string;
+            size: string;
+            quantity: number;
+            maxAvailable: number;
+            available: boolean;
+            name?: string;
+            image?: string;
+        }> = [];
+        let allAvailable = true;
+
+        for (const item of items) {
+            const { productId, size, quantity } = item;
+
+            if (!productId || !size || !quantity) {
+                allAvailable = false;
+                stockResults.push({
+                    productId: productId || 'unknown',
+                    size: size || 'unknown',
+                    quantity: quantity || 0,
+                    maxAvailable: 0,
+                    available: false,
+                    name: 'Invalid item data',
+                });
+                continue;
+            }
+
+            // Check product stock
+            let product = await Product.findOne({ productId }).lean();
+            if (product) {
+                const sizeKey = 'sizeCounts' as keyof typeof product;
+                const sizeCount = product[sizeKey];
+                const availableForSize = 
+                    (Array.isArray(sizeCount) || typeof sizeCount === 'object')
+                        ? (sizeCount as any)?.[size] || 0
+                        : 0;
+
+                const isAvailable = availableForSize >= quantity;
+                if (!isAvailable) allAvailable = false;
+
+                stockResults.push({
+                    productId,
+                    size,
+                    quantity,
+                    maxAvailable: Math.max(0, availableForSize),
+                    available: isAvailable,
+                    name: product.name,
+                    image: product.image,
+                });
+                continue;
+            }
+
+            // If not a product, result will show unavailable
+            allAvailable = false;
+            stockResults.push({
+                productId,
+                size,
+                quantity,
+                maxAvailable: 0,
+                available: false,
+            });
+        }
+
+        res.json({
+            available: allAvailable,
+            items: stockResults,
+        });
+    } catch (error: unknown) {
+        console.error('Check stock error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to check stock';
+        res.status(500).json({ error: errorMessage });
+    }
+};

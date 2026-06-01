@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Product from '../models/Product';
 import Sale from '../models/Sale';
 import { resolveSizeQuantities } from '../utils/sizeQuantities';
+import { cacheInvalidatePrefix, cacheDel } from '../utils/cache';
 
 interface ImageItem {
     image: string;
@@ -162,6 +163,8 @@ export async function decrementStockForLines(
             if (res.modifiedCount !== 1) {
                 throw new Error(`Stock conflict for product ${line.productId}`);
             }
+            // Invalidate cache for this product after stock update
+            await cacheDel(`product:${line.productId}`);
         } else {
             const res = await Sale.updateOne(
                 { saleId: line.productId, stock: { $gte: line.quantity } },
@@ -171,8 +174,12 @@ export async function decrementStockForLines(
             if (res.modifiedCount !== 1) {
                 throw new Error(`Stock conflict for sale item ${line.productId}`);
             }
+            // Invalidate cache for this sale item after stock update
+            await cacheDel(`sale:${line.productId}`);
         }
     }
+    // Also invalidate all product list caches to show updated stock immediately
+    await cacheInvalidatePrefix('products:');
 }
 
 export async function incrementStockForLines(
@@ -187,12 +194,18 @@ export async function incrementStockForLines(
                 { $inc: { stock: line.quantity, [sizeKey]: line.quantity } },
                 session ? { session } : {}
             );
+            // Invalidate cache for this product after stock update
+            await cacheDel(`product:${line.productId}`);
         } else {
             await Sale.updateOne(
                 { saleId: line.productId },
                 { $inc: { stock: line.quantity } },
                 session ? { session } : {}
             );
+            // Invalidate cache for this sale item after stock update
+            await cacheDel(`sale:${line.productId}`);
         }
     }
+    // Also invalidate all product list caches to show updated stock immediately
+    await cacheInvalidatePrefix('products:');
 }

@@ -36,6 +36,21 @@ const normalizeIndianPhone = (phone: string) => {
 
 const isValidIndianPhone = (phone: string) => /^[6-9]\d{9}$/.test(normalizeIndianPhone(phone));
 
+const successConfetti = [
+  { left: '10%', top: '12%', color: '#ff4d6d', shape: 'square', delay: 0 },
+  { left: '24%', top: '6%', color: '#2dd36f', shape: 'line', delay: 0.1 },
+  { left: '42%', top: '18%', color: '#ffd166', shape: 'circle', delay: 0.2 },
+  { left: '63%', top: '9%', color: '#7c3aed', shape: 'squiggle', delay: 0.15 },
+  { left: '82%', top: '17%', color: '#22d3ee', shape: 'square', delay: 0.05 },
+  { left: '14%', top: '38%', color: '#4ade80', shape: 'star', delay: 0.25 },
+  { left: '78%', top: '42%', color: '#a3e635', shape: 'triangle', delay: 0.18 },
+  { left: '29%', top: '66%', color: '#f472b6', shape: 'plus', delay: 0.3 },
+  { left: '56%', top: '75%', color: '#facc15', shape: 'line', delay: 0.12 },
+  { left: '88%', top: '70%', color: '#fb7185', shape: 'square', delay: 0.22 },
+  { left: '8%', top: '82%', color: '#818cf8', shape: 'star', delay: 0.28 },
+  { left: '70%', top: '86%', color: '#67e8f9', shape: 'squiggle', delay: 0.2 },
+];
+
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { items, getTotalPrice, clearCart, removeItem } = useCartStore();
@@ -44,6 +59,7 @@ export default function CheckoutPage() {
   const [step, setStep] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('razorpay');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [policyAccepted, setPolicyAccepted] = useState(false);
 
@@ -88,6 +104,16 @@ export default function CheckoutPage() {
       navigate('/shop');
     }
   }, [items, step, navigate]);
+
+  useEffect(() => {
+    if (step !== 3 || !successOrderId) return;
+
+    const timer = window.setTimeout(() => {
+      navigate('/orders', { replace: true });
+    }, 4200);
+
+    return () => window.clearTimeout(timer);
+  }, [step, successOrderId, navigate]);
 
   const handleApplyCoupon = async (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
@@ -181,7 +207,7 @@ export default function CheckoutPage() {
 
       if (Object.keys(errors).length > 0) {
         setStockErrors(errors);
-        toast.error('Some cart items are unavailable. Please review your cart.');
+        toast.error('Some cart items are unavailable.  review your cart.');
         return false;
       }
 
@@ -435,10 +461,10 @@ export default function CheckoutPage() {
         amount: total,
         orderData,
         onSuccess: (orderId) => {
+          setSuccessOrderId(orderId);
           setStep(3);
           clearCart();
-          toast.success(`Order ${orderId} placed successfully! 🎉`);
-          navigate('/orders', { replace: true });
+          toast.success(`Order ${orderId} placed successfully!`);
         },
         onFailure: (error) => {
           console.error('Payment failed:', error);
@@ -579,7 +605,7 @@ export default function CheckoutPage() {
                       <div className="flex-1">
                         <h3 className="font-semibold text-amber-900 dark:text-amber-100 mb-2">Important Policy</h3>
                         <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
-                          <strong>No Returns | No Exchanges</strong> - All sales are final. Please review your order carefully before proceeding.
+                          <strong>No Returns | No Exchanges</strong> - All sales are final.  Review your order carefully before proceeding.
                         </p>
                         <label className="flex items-start gap-2 cursor-pointer">
                           <input
@@ -737,7 +763,7 @@ export default function CheckoutPage() {
                       <div className="flex-1">
                         <h3 className="font-semibold text-amber-900 dark:text-amber-100 mb-2">Important Policy</h3>
                         <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
-                          <strong>No Returns | No Exchanges</strong> - All sales are final. Please review your order carefully before proceeding.
+                          <strong>No Returns | No Exchanges</strong> - All sales are final.  review your order carefully before proceeding.
                         </p>
                         <label className="flex items-start gap-2 cursor-pointer">
                           <input
@@ -998,29 +1024,99 @@ export default function CheckoutPage() {
           {/* Step 3: Confirmation */}
           {step === 3 && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-center py-12"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="relative min-h-[68vh] overflow-hidden rounded-lg bg-white py-16 text-center"
             >
-              <div className="bg-card rounded-2xl shadow-lg p-12">
-                <div className="w-20 h-20 bg-secondary rounded-full flex items-center justify-center mx-auto mb-6">
-                  <Check className="text-primary" size={40} />
+              <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+                {successConfetti.map((piece, index) => (
+                  <motion.span
+                    key={`${piece.left}-${piece.top}-${index}`}
+                    initial={{ opacity: 0, y: -18, rotate: -20 }}
+                    animate={{ opacity: [0, 1, 1], y: [0, 18, 34], rotate: [0, 18, -8] }}
+                    transition={{ duration: 1.8, delay: piece.delay, repeat: Infinity, repeatDelay: 1.2 }}
+                    className={`absolute block ${
+                      piece.shape === 'circle'
+                        ? 'h-2.5 w-2.5 rounded-full'
+                        : piece.shape === 'line'
+                          ? 'h-10 w-1 rounded-full'
+                          : piece.shape === 'triangle'
+                            ? 'h-0 w-0 border-l-[7px] border-r-[7px] border-b-[12px] border-l-transparent border-r-transparent bg-transparent'
+                            : piece.shape === 'star'
+                              ? 'h-3 w-3 rotate-45'
+                              : piece.shape === 'plus'
+                                ? 'h-3 w-3'
+                                : piece.shape === 'squiggle'
+                                  ? 'h-3 w-8 rounded-full border-t-4 bg-transparent'
+                                  : 'h-3 w-3'
+                    }`}
+                    style={{
+                      left: piece.left,
+                      top: piece.top,
+                      backgroundColor: ['triangle', 'squiggle'].includes(piece.shape) ? undefined : piece.color,
+                      borderBottomColor: piece.shape === 'triangle' ? piece.color : undefined,
+                      borderTopColor: piece.shape === 'squiggle' ? piece.color : undefined,
+                    }}
+                  />
+                ))}
+              </div>
+
+              <div className="relative mx-auto flex min-h-[56vh] max-w-md flex-col items-center justify-center px-6">
+                <motion.div
+                  initial={{ scale: 0.7, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 180, damping: 16 }}
+                  className="relative mb-8 flex h-36 w-36 items-center justify-center rounded-full bg-green-100"
+                >
+                  <motion.div
+                    initial={{ scale: 0.85 }}
+                    animate={{ scale: [0.95, 1.04, 0.95] }}
+                    transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+                    className="absolute inset-4 rounded-full bg-green-200/70"
+                  />
+                  <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-[#18c90f] shadow-[0_18px_45px_rgba(24,201,15,0.28)]">
+                    <Check className="text-white" size={58} strokeWidth={2.6} />
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.18 }}
+                >
+                  <h2 className="mb-3 text-2xl font-bold leading-tight text-neutral-950">
+                    Order placed successfully!
+                  </h2>
+                  <p className="mx-auto mb-2 max-w-xs text-sm leading-6 text-neutral-600">
+                    Payment received. Your order is confirmed and ready in your orders page.
+                  </p>
+                  {successOrderId && (
+                    <p className="mb-7 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                      Order {successOrderId}
+                    </p>
+                  )}
+                </motion.div>
+
+                <div className="flex w-full flex-col gap-3 sm:flex-row">
+                  <Link
+                    to="/orders"
+                    replace
+                    className="flex-1 rounded-full bg-neutral-950 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-950 focus:ring-offset-2"
+                  >
+                    View orders
+                  </Link>
+                  <Link
+                    to="/"
+                    replace
+                    className="flex-1 rounded-full border border-neutral-300 bg-white px-6 py-3 text-sm font-semibold text-neutral-950 transition-colors hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-950 focus:ring-offset-2"
+                  >
+                    Home
+                  </Link>
                 </div>
-                <h2 className="font-serif text-3xl font-bold mb-4">Order Placed Successfully!</h2>
-                <p className="text-muted-foreground mb-8">
-                  Thank you for your purchase. You will receive a confirmation email shortly.
+
+                <p className="mt-5 text-xs text-neutral-500">
+                  Redirecting to orders in a moment.
                 </p>
-                <div className="flex flex-wrap gap-4 justify-center">
-                  <Link to="/orders" className="btn-primary px-8 py-3">
-                    View my orders
-                  </Link>
-                  <Link to="/shop" className="btn-secondary px-8 py-3">
-                    Continue Shopping
-                  </Link>
-                  <Link to="/" className="btn-secondary px-8 py-3">
-                    Go to Home
-                  </Link>
-                </div>
               </div>
             </motion.div>
           )}

@@ -75,7 +75,7 @@ export const createRazorpayOrder = async (req: AuthRequest, res: Response): Prom
 
             const serverTotal = resolved.subtotal - discount;
             if (Math.round(serverTotal * 100) !== Math.round(numericAmount * 100)) {
-                res.status(409).json({ error: 'Cart total changed. Please review your cart and try again.' });
+                res.status(409).json({ error: 'Cart total changed.  review your cart and try again.' });
                 return;
             }
 

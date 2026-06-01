@@ -155,7 +155,7 @@ export function RefundPolicyPage() {
   return (
     <PolicyPage
       title="Refund / Return Policy"
-      intro="Please review our policy before placing an order. We want customers to make informed purchases."
+      intro="Review our policy before placing an order. We want customers to make informed purchases."
       sections={[
         {
           heading: 'No Returns / No Exchanges',

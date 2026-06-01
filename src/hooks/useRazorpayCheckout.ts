@@ -65,6 +65,8 @@ interface RazorpayCheckoutProps {
     onFailure: (error: unknown) => void;
 }
 
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export const useRazorpayCheckout = () => {
     const { user } = useAuth();
     const inFlight = useRef(false);
@@ -142,13 +144,30 @@ export const useRazorpayCheckout = () => {
                             razorpaySignature: response.razorpay_signature,
                         });
 
-                        // Create order in database
-                        const orderRes = await orderService.createOrder({
+                        const paidOrderData = {
                             ...orderData,
                             razorpayOrderId: response.razorpay_order_id,
                             razorpayPaymentId: response.razorpay_payment_id,
                             razorpaySignature: response.razorpay_signature,
-                        });
+                        };
+
+                        let orderRes: Awaited<ReturnType<typeof orderService.createOrder>> | null = null;
+                        let lastCreateError: unknown = null;
+
+                        for (const delay of [0, 1000, 2500]) {
+                            if (delay) await wait(delay);
+                            try {
+                                orderRes = await orderService.createOrder(paidOrderData);
+                                break;
+                            } catch (createError) {
+                                lastCreateError = createError;
+                                console.error('Create paid order attempt failed:', createError);
+                            }
+                        }
+
+                        if (!orderRes) {
+                            throw lastCreateError || new Error('Failed to create order after payment');
+                        }
 
                         toast.success(`Payment successful! Order ${orderRes.order.orderId} placed.`);
                         onSuccess(orderRes.order.orderId);

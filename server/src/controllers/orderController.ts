@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth';
 import Order from '../models/Order';
 import Cart from '../models/Cart';
 import PaymentClaim from '../models/PaymentClaim';
+import PaymentIntent from '../models/PaymentIntent';
 import Coupon from '../models/Coupon';
 import { generateOrderId, validatePhone, validatePincode } from '../utils/helpers';
 import { sendOrderConfirmationEmail, sendOrderStatusUpdateEmail } from '../config/email';
@@ -15,8 +16,6 @@ import {
 } from '../services/orderLineItems';
 import {
     verifyRazorpaySignature,
-    fetchRazorpayPayment,
-    fetchRazorpayOrder,
 } from '../config/razorpay';
 
 function normalizeShippingAddress(raw: Record<string, unknown>) {
@@ -154,43 +153,18 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
                 return;
             }
 
-            let payment: Record<string, unknown>;
-            let rpOrder: Record<string, unknown>;
-            try {
-                payment = await fetchRazorpayPayment(razorpayPaymentId);
-                rpOrder = await fetchRazorpayOrder(razorpayOrderId);
-            } catch (e) {
-                console.error('Razorpay fetch failed:', e);
-                res.status(502).json({ error: 'Unable to verify payment with Razorpay' });
+            const paymentIntent = await PaymentIntent.findOne({ razorpayOrderId, userId });
+            if (!paymentIntent) {
+                res.status(409).json({ error: 'Payment session expired. Please contact support with your Razorpay payment ID.' });
                 return;
             }
 
-            const orderIdFromPayment = String(payment.order_id || '');
-            if (orderIdFromPayment !== razorpayOrderId) {
-                res.status(400).json({ error: 'Payment does not match Razorpay order' });
-                return;
-            }
-
-            const amount = Number(payment.amount);
-            if (!Number.isFinite(amount) || amount !== totalPaise) {
+            if (paymentIntent.amountPaise !== totalPaise) {
                 res.status(400).json({
                     error: 'Payment amount mismatch',
                     expectedPaise: totalPaise,
-                    receivedPaise: amount,
+                    receivedPaise: paymentIntent.amountPaise,
                 });
-                return;
-            }
-
-            const status = String(payment.status || '');
-            if (!['captured', 'authorized'].includes(status)) {
-                res.status(400).json({ error: `Payment not successful (status: ${status})` });
-                return;
-            }
-
-            const notes = (rpOrder.notes || {}) as Record<string, string>;
-            const noteUserId = notes.userId || notes.user_id;
-            if (noteUserId && String(noteUserId) !== userId) {
-                res.status(403).json({ error: 'Payment order does not belong to this user' });
                 return;
             }
 
@@ -269,30 +243,11 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
             try {
                 await Cart.findOneAndUpdate({ userId }, { items: [] });
                 await cacheDel(`cart:${userId}`);
+                if (paymentMethod === 'razorpay' && razorpayOrderId) {
+                    await PaymentIntent.findOneAndUpdate({ razorpayOrderId, userId }, { status: 'completed' });
+                }
             } catch (cartError) {
                 console.warn('Failed to clear cart:', cartError);
-            }
-
-            try {
-                await sendOrderConfirmationEmail({
-                    customerName: shippingAddress.fullName,
-                    customerEmail: shippingAddress.email || userEmail,
-                    orderId: order.orderId,
-                    orderDate: order.createdAt,
-                    items: order.items.map((item) => ({
-                        name: item.name,
-                        size: item.size,
-                        color: item.color,
-                        quantity: item.quantity,
-                        price: item.price * item.quantity,
-                    })),
-                    subtotal: order.subtotal,
-                    total: order.total,
-                    paymentMethod: paymentMethod === 'cod' ? 'Cash on Delivery' : 'Online Payment',
-                    shippingAddress: order.shippingAddress,
-                });
-            } catch (emailError) {
-                console.error('Failed to send order confirmation email:', emailError);
             }
 
             res.status(201).json({
@@ -304,6 +259,26 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
                     total: order.total,
                     estimatedDelivery: order.estimatedDelivery,
                 },
+            });
+
+            sendOrderConfirmationEmail({
+                customerName: shippingAddress.fullName,
+                customerEmail: shippingAddress.email || userEmail,
+                orderId: order.orderId,
+                orderDate: order.createdAt,
+                items: order.items.map((item) => ({
+                    name: item.name,
+                    size: item.size,
+                    color: item.color,
+                    quantity: item.quantity,
+                    price: item.price * item.quantity,
+                })),
+                subtotal: order.subtotal,
+                total: order.total,
+                paymentMethod: paymentMethod === 'cod' ? 'Cash on Delivery' : 'Online Payment',
+                shippingAddress: order.shippingAddress,
+            }).catch((emailError) => {
+                console.error('Failed to send order confirmation email:', emailError);
             });
         } catch (createErr: unknown) {
             const code = (createErr as { code?: number }).code;

@@ -2,6 +2,9 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { getRazorpayInstance, verifyRazorpaySignature } from '../config/razorpay';
 import { generateOrderId } from '../utils/helpers';
+import Coupon from '../models/Coupon';
+import PaymentIntent from '../models/PaymentIntent';
+import { resolveOrderLines, RawOrderItemInput } from '../services/orderLineItems';
 
 type RazorpayApiError = {
     statusCode?: number;
@@ -43,12 +46,40 @@ export const createRazorpayOrder = async (req: AuthRequest, res: Response): Prom
             return;
         }
 
-        const { amount, currency = 'INR' } = req.body;
-        const numericAmount = Number(amount);
+        const { amount, currency = 'INR', orderData } = req.body;
+        let numericAmount = Number(amount);
 
         if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
             res.status(400).json({ error: 'Valid amount is required' });
             return;
+        }
+
+        if (orderData?.items) {
+            const resolved = await resolveOrderLines(orderData.items as RawOrderItemInput[]);
+            let discount = 0;
+            const couponCode = orderData.couponCode ? String(orderData.couponCode).toUpperCase() : '';
+
+            if (couponCode) {
+                const coupon = await Coupon.findOne({ code: couponCode, isActive: true });
+                if (coupon) {
+                    const isExpired = coupon.expiryDate && new Date(coupon.expiryDate) < new Date();
+                    const isMinAmountMet = !coupon.minOrderAmount || resolved.subtotal >= coupon.minOrderAmount;
+
+                    if (!isExpired && isMinAmountMet) {
+                        discount = coupon.discountType === 'percentage'
+                            ? Math.round((resolved.subtotal * coupon.discountValue) / 100)
+                            : Math.min(coupon.discountValue, resolved.subtotal);
+                    }
+                }
+            }
+
+            const serverTotal = resolved.subtotal - discount;
+            if (Math.round(serverTotal * 100) !== Math.round(numericAmount * 100)) {
+                res.status(409).json({ error: 'Cart total changed. Please review your cart and try again.' });
+                return;
+            }
+
+            numericAmount = serverTotal;
         }
 
         const keyId = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
@@ -69,6 +100,13 @@ export const createRazorpayOrder = async (req: AuthRequest, res: Response): Prom
         };
 
         const order = await razorpay.orders.create(options);
+
+        await PaymentIntent.create({
+            razorpayOrderId: order.id,
+            userId: String(userId),
+            amountPaise: Number(order.amount),
+            status: 'created',
+        });
 
         res.json({
             orderId: order.id,

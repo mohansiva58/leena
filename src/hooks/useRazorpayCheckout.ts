@@ -81,7 +81,7 @@ export const useRazorpayCheckout = () => {
             inFlight.current = true;
 
             // Create Razorpay order
-            const razorpayOrder = await paymentService.createRazorpayOrder(amount);
+            const razorpayOrder = await paymentService.createRazorpayOrder(amount, orderData);
 
             const options = {
                 key: razorpayOrder.keyId,

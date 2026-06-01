@@ -17,7 +17,7 @@ interface Product {
     setType?: string;
     isNew?: boolean;
     isBestseller?: boolean;
-    sizes?: string;
+    sizes?: string | string[];
     sizeCounts?: Record<string, number>;
     image?: string;
     images?: string[];

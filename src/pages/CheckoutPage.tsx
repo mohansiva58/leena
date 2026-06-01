@@ -22,7 +22,7 @@ type PaymentMethod = 'razorpay';
 type CatalogStockItem = {
   productId?: string;
   saleId?: string;
-  sizes?: string[];
+  sizes?: string | string[];
   stock?: number;
   sizeCounts?: Record<string, number>;
 };
@@ -164,7 +164,11 @@ export default function CheckoutPage() {
           return;
         }
 
-        if (Array.isArray(catalogItem.sizes) && !catalogItem.sizes.includes(item.size)) {
+        const catalogSizes = Array.isArray(catalogItem.sizes)
+          ? catalogItem.sizes
+          : String(catalogItem.sizes || '').split(',').map((size) => size.trim()).filter(Boolean);
+
+        if (catalogSizes.length > 0 && !catalogSizes.includes(item.size)) {
           errors[key] = `${item.size} is no longer available`;
           return;
         }

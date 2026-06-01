@@ -1,11 +1,20 @@
 import api from './api';
-import { CartItem } from '@/lib/cart';
-
 export interface Cart {
     _id: string;
     userId: string;
-    items: CartItem[];
+    items: ServerCartItem[];
     updatedAt: string;
+}
+
+export interface ServerCartItem {
+    productId: string;
+    name: string;
+    price: number;
+    image: string;
+    size: string;
+    quantity: number;
+    variantImage?: string;
+    color?: string;
 }
 
 type SizeQuantityPayload =

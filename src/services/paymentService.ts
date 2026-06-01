@@ -1,4 +1,5 @@
 import api from './api';
+import { CreateOrderData } from './orderService';
 
 export interface RazorpayOrderResponse {
     orderId: string;
@@ -14,8 +15,8 @@ export interface PaymentVerificationData {
 }
 
 export const paymentService = {
-    createRazorpayOrder: async (amount: number): Promise<RazorpayOrderResponse> => {
-        const response = await api.post('/payment/create-order', { amount });
+    createRazorpayOrder: async (amount: number, orderData?: CreateOrderData): Promise<RazorpayOrderResponse> => {
+        const response = await api.post('/payment/create-order', { amount, orderData });
         return response.data;
     },
 

@@ -9,7 +9,18 @@ const PANEL_HEIGHT = 140;
 const THUMB_H = 160;
 const THUMB_W = 110;
 
-const slides = [
+type HeroSlide = {
+  id: string;
+  name: string;
+  bgColor: string;
+  description: string;
+  themeText: string;
+  heroImage: string;
+  thumbnail: string;
+  useVideo?: boolean;
+};
+
+const slides: HeroSlide[] = [
   {
     id: "new-arrivals",
     name: "New Arrivals",
@@ -188,7 +199,7 @@ export function HeroSection() {
               />
             ) : (
               <img
-                src={(currentSlide as { heroImage?: string }).heroImage}
+                src={currentSlide.heroImage}
                 alt={currentSlide.name}
                 style={{ height: "100%", width: "auto", objectFit: "contain", filter: "drop-shadow(0 30px 60px rgba(0,0,0,0.4))" }}
               />

@@ -27,6 +27,7 @@ export const authenticateUser = async (
     next: NextFunction
 ): Promise<void> => {
     try {
+        console.log(`[AuthMiddleware] Entering for ${req.method} ${req.originalUrl}, Authorization header:`, req.headers.authorization ? 'Present' : 'Not present');
         const authHeader = req.headers.authorization;
 
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -109,6 +110,7 @@ export const authenticateUser = async (
             email: decodedToken.email || user?.email || '',
             displayName: decodedToken.name || user?.displayName || '',
         };
+        console.log('[AuthMiddleware] req.user successfully set:', req.user);
 
         next();
 

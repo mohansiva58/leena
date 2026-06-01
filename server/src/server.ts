@@ -140,7 +140,6 @@ function createApp(): Application {
     // Specific direct registration for problematic routes
     app.post('/api/coupons/validate', validateCoupon);
     app.post('/api/products/check-stock', checkStockAvailability);
-    app.post('/api/orders', createOrder);
 
     // Standard route registration
     app.use('/api/coupons', couponRoutes);

@@ -210,7 +210,12 @@ export const useRazorpayCheckout = () => {
                                     ? recentOrders[0]
                                     : null;
 
-                            if (latestOrder?.orderId) {
+                            const isMatch = latestOrder && (
+                                latestOrder.razorpayPaymentId === response.razorpay_payment_id ||
+                                latestOrder.razorpayOrderId === response.razorpay_order_id
+                            );
+
+                            if (latestOrder?.orderId && isMatch) {
                                 const recoveredOrderDetails = {
                                     ...orderData,
                                     orderId: latestOrder.orderId,

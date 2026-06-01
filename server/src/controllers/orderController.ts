@@ -48,8 +48,10 @@ function validateShippingAddress(addr: ReturnType<typeof normalizeShippingAddres
 }
 
 export const createOrder = async (req: AuthRequest, res: Response): Promise<void> => {
+    console.log('[createOrder] Entering, req.user:', req.user);
     const userId = req.user?.uid;
     if (!userId) {
+        console.warn('[createOrder] Blocked: req.user.uid is missing! Returning 401.');
         res.status(401).json({ error: 'Unauthorized' });
         return;
     }

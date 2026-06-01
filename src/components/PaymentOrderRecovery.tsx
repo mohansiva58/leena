@@ -74,8 +74,12 @@ export function PaymentOrderRecovery() {
             : Array.isArray(recentOrders)
               ? recentOrders[0]
               : null;
-          // Only use this order if it was created very recently (within last 5 min)
-          if (latestOrder?.orderId && latestOrder?.createdAt) {
+          const isMatch = latestOrder && (
+            latestOrder.razorpayPaymentId === pendingOrder.razorpayPaymentId ||
+            latestOrder.razorpayOrderId === pendingOrder.razorpayOrderId
+          );
+          // Only use this order if it was created very recently (within last 5 min) and matches the pending transaction
+          if (latestOrder?.orderId && latestOrder?.createdAt && isMatch) {
             const createdAgo = Date.now() - new Date(latestOrder.createdAt).getTime();
             if (createdAgo < 5 * 60 * 1000) {
               createdOrderId = latestOrder.orderId;

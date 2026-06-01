@@ -14,6 +14,8 @@ import {
     incrementStockForLines,
     RawOrderItemInput,
 } from '../services/orderLineItems';
+import { StockReservationService } from '../services/StockReservationService';
+import StockReservation from '../models/StockReservation';
 import {
     verifyRazorpaySignature,
 } from '../config/razorpay';
@@ -47,12 +49,12 @@ function validateShippingAddress(addr: ReturnType<typeof normalizeShippingAddres
 
 export const createOrder = async (req: AuthRequest, res: Response): Promise<void> => {
     const userId = req.user?.uid;
-    const userEmail = req.user?.email;
-
-    if (!userId || !userEmail) {
+    if (!userId) {
         res.status(401).json({ error: 'Unauthorized' });
         return;
     }
+
+    const userEmail = req.user?.email || req.body.shippingAddress?.email || `user_${userId}@example.com`;
 
     const {
         items,
@@ -62,6 +64,7 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
         razorpayPaymentId,
         razorpaySignature,
         couponCode,
+        reservationIds,
     } = req.body;
 
     try {
@@ -202,7 +205,31 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
         const orderId = generateOrderId();
 
         try {
-            await decrementStockForLines(lines);
+            if (reservationIds && Array.isArray(reservationIds) && reservationIds.length > 0) {
+                // Check if ALL reservations exist and are valid (i.e. 'reserved' status and not expired)
+                const validReservationsCount = await StockReservation.countDocuments({
+                    reservationId: { $in: reservationIds },
+                    status: 'reserved',
+                    expiresAt: { $gt: new Date() }
+                });
+
+                if (validReservationsCount === reservationIds.length) {
+                    // All reservations are valid, complete them atomically
+                    for (const resId of reservationIds) {
+                        await StockReservationService.completeReservation(resId);
+                    }
+                } else {
+                    // One or more reservations have expired or are missing!
+                    // To prevent stock leaks, release any remaining active reservations in this order
+                    for (const resId of reservationIds) {
+                        await StockReservationService.releaseStock(resId).catch(() => undefined);
+                    }
+                    // Fall back to direct atomic decrement of stock for all items
+                    await decrementStockForLines(lines);
+                }
+            } else {
+                await decrementStockForLines(lines);
+            }
         } catch (stockErr) {
             if (paymentMethod === 'razorpay' && razorpayPaymentId) {
                 await PaymentClaim.deleteOne({ razorpayPaymentId }).catch(() => undefined);
@@ -370,9 +397,14 @@ export const getOrderById = async (req: AuthRequest, res: Response): Promise<voi
         }
 
         res.json(order);
-    } catch (error) {
-        console.error('Get order error:', error);
-        res.status(500).json({ error: 'Failed to fetch order' });
+    } catch (error: unknown) {
+        const err = error as Error;
+        console.error('Create order error:', err);
+        if (err.message?.includes('Stock conflict')) {
+            res.status(400).json({ error: err.message });
+            return;
+        }
+        res.status(500).json({ error: 'Failed to create order' });
     }
 };
 

@@ -106,8 +106,8 @@ export const authenticateUser = async (
 
         req.user = {
             uid: decodedToken.uid,
-            email: decodedToken.email || '',
-            displayName: decodedToken.name,
+            email: decodedToken.email || user?.email || '',
+            displayName: decodedToken.name || user?.displayName || '',
         };
 
         next();

@@ -30,6 +30,7 @@ export interface IProduct extends Document {
     newArrival: boolean;
     isBestseller: boolean;
     stock: number;
+    sizeReservedCounts?: Record<string, number>;
     setType?: string; // e.g., "1 piece", "2 piece set", "3 piece set"
     colors?: IColorVariant[]; // Color variants
     cloudinaryId?: string;
@@ -65,6 +66,11 @@ const ProductSchema: Schema = new Schema(
         sizeCounts: {
             type: Map,
             of: Number,
+        },
+        sizeReservedCounts: {
+            type: Map,
+            of: Number,
+            default: {},
         },
         description: { type: String, required: true },
         rating: { type: Number, default: 0, min: 0, max: 5 },

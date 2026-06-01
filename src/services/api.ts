@@ -6,7 +6,7 @@ let apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 if (apiUrl && !apiUrl.endsWith('/api')) {
     apiUrl = apiUrl.replace(/\/$/, '') + '/api'; // Remove trailing slash, then add /api
 }
-const API_BASE_URL = apiUrl;
+export const API_BASE_URL = apiUrl;
 
 export const api = axios.create({
     baseURL: API_BASE_URL,
@@ -24,8 +24,12 @@ api.interceptors.request.use(
             localStorage.setItem('firebaseToken', freshToken);
             config.headers.Authorization = `Bearer ${freshToken}`;
         } else {
-            localStorage.removeItem('firebaseToken');
-            delete config.headers.Authorization;
+            const cachedToken = localStorage.getItem('firebaseToken');
+            if (cachedToken) {
+                config.headers.Authorization = `Bearer ${cachedToken}`;
+            } else {
+                delete config.headers.Authorization;
+            }
         }
         return config;
     },

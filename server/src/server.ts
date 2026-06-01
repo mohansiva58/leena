@@ -6,6 +6,9 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
+import { createServer } from 'http';
+import { initIO } from './socket';
+import { StockReservationService } from './services/StockReservationService';
 
 // Load repo-level defaults first, then let server/.env override them.
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -33,6 +36,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { razorpayWebhook } from './controllers/paymentWebhookController';
 import { validateCoupon } from './controllers/couponController';
 import { checkStockAvailability } from './controllers/productController';
+import { createOrder } from './controllers/orderController';
 
 const PORT = Number(process.env.PORT || 5000);
 
@@ -132,10 +136,11 @@ function createApp(): Application {
         res.json({ status: 'OK', timestamp: new Date().toISOString() });
     });
 
-    // ============ API ROUTES (with /api prefix) ============
-    // Specific direct registration for problematic route
+  // ============ API ROUTES (with /api prefix) ============
+    // Specific direct registration for problematic routes
     app.post('/api/coupons/validate', validateCoupon);
     app.post('/api/products/check-stock', checkStockAvailability);
+    app.post('/api/orders', createOrder);
 
     // Standard route registration
     app.use('/api/coupons', couponRoutes);
@@ -205,12 +210,22 @@ async function startWorker() {
             console.warn('⚠️  Email service initialization failed:', (error as Error).message);
         }
 
-        // Start Express server
-        const server = app.listen(PORT, () => {
+        // Start HTTP server with Socket.io
+        const httpServer = createServer(app);
+        initIO(httpServer);
+
+        const server = httpServer.listen(PORT, () => {
             console.log(`\n✅ Server running on port ${PORT}`);
             console.log(`📱 API Base URL: http://localhost:${PORT}/api`);
             console.log(`🏥 Health Check: http://localhost:${PORT}/health\n`);
         });
+
+        // Cleanup expired reservations every 1 minute
+        setInterval(() => {
+            StockReservationService.cleanupExpiredReservations().catch(err => 
+                console.error('Reservation cleanup failed:', err)
+            );
+        }, 1 * 60 * 1000);
 
         server.on('error', (error: NodeJS.ErrnoException) => {
             if (error.code === 'EADDRINUSE') {

@@ -1,21 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ChevronLeft, CreditCard, Check, AlertCircle, Plus, Pencil, Trash2, Minus } from 'lucide-react';
+import { ChevronLeft, CreditCard, Check, AlertCircle, Plus, Pencil, Trash2, Minus, ShoppingBag, Truck } from 'lucide-react';
+import { AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { AuthModal } from '@/components/AuthModal';
 import { useCartStore, getProductId, getCartItemImage } from '@/lib/cart';
 import { useAuth } from '@/hooks/useAuth';
+import { useRealTimeStock } from '@/hooks/useRealTimeStock';
 import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
-import { orderService } from '@/services/orderService';
+import { orderService, CreateOrderData } from '@/services/orderService';
 import { couponService } from '@/services/couponService';
 import { userService, SavedAddress } from '@/services/userService';
 import { productService } from '@/services/productService';
+import { useSocket } from '@/hooks/useSocket';
 import { saleService } from '@/services/saleService';
 import { indianStates } from '@/lib/indianStates';
 import { toast } from 'sonner';
 import axios, { AxiosError } from 'axios';
+
+import { API_BASE_URL } from '@/services/api';
 
 type PaymentMethod = 'razorpay';
 
@@ -36,30 +41,121 @@ const normalizeIndianPhone = (phone: string) => {
 
 const isValidIndianPhone = (phone: string) => /^[6-9]\d{9}$/.test(normalizeIndianPhone(phone));
 
-const successConfetti = [
-  { left: '10%', top: '12%', color: '#ff4d6d', shape: 'square', delay: 0 },
-  { left: '24%', top: '6%', color: '#2dd36f', shape: 'line', delay: 0.1 },
-  { left: '42%', top: '18%', color: '#ffd166', shape: 'circle', delay: 0.2 },
-  { left: '63%', top: '9%', color: '#7c3aed', shape: 'squiggle', delay: 0.15 },
-  { left: '82%', top: '17%', color: '#22d3ee', shape: 'square', delay: 0.05 },
-  { left: '14%', top: '38%', color: '#4ade80', shape: 'star', delay: 0.25 },
-  { left: '78%', top: '42%', color: '#a3e635', shape: 'triangle', delay: 0.18 },
-  { left: '29%', top: '66%', color: '#f472b6', shape: 'plus', delay: 0.3 },
-  { left: '56%', top: '75%', color: '#facc15', shape: 'line', delay: 0.12 },
-  { left: '88%', top: '70%', color: '#fb7185', shape: 'square', delay: 0.22 },
-  { left: '8%', top: '82%', color: '#818cf8', shape: 'star', delay: 0.28 },
-  { left: '70%', top: '86%', color: '#67e8f9', shape: 'squiggle', delay: 0.2 },
-];
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { items, getTotalPrice, clearCart, removeItem } = useCartStore();
   const { isAuthenticated, user } = useAuth();
+  useRealTimeStock();
   const { initiatePayment } = useRazorpayCheckout();
   const [step, setStep] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('razorpay');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
+
+  const paymentSucceeded = useRef(false);
+
+  // ── Reservation Logic ────────────────────────────────────────────────────
+  // Reserve stock when user enters checkout. Release ALL reservations when
+  // user leaves checkout without paying (unmount).
+  useEffect(() => {
+    let reservationsMade: string[] = [];
+
+    const reserveItems = async () => {
+      const store = useCartStore.getState();
+      const currentReservations = store.reservationIds || [];
+      if (items.length > 0 && currentReservations.length === 0) {
+        const sessionId = store.sessionId;
+        const reservationIds: string[] = [];
+        const loadingToastId = 'checkout-reservation';
+        toast.loading('Securing your items...', { id: loadingToastId });
+
+        try {
+          for (const item of items) {
+            const res = await productService.reserveStock({
+              productId: getProductId(item.product) || '',
+              size: item.size,
+              quantity: item.quantity,
+              sessionId,
+              userId: user?.uid
+            });
+            reservationIds.push(res.reservationId);
+          }
+          reservationsMade = reservationIds;
+          store.setReservationIds(reservationIds);
+          toast.success('Items secured for checkout!', { id: loadingToastId });
+        } catch (err: unknown) {
+          const error = err as { response?: { data?: { error?: string } } };
+          toast.error(error.response?.data?.error || 'Some items are out of stock. Returning to cart.', { id: loadingToastId });
+          setTimeout(() => navigate('/cart'), 1500);
+        }
+      } else {
+        // Already have reservations - track them for cleanup
+        reservationsMade = currentReservations;
+      }
+    };
+
+    const handleUnload = () => {
+      if (paymentSucceeded.current) return;
+
+      const store = useCartStore.getState();
+      const ids = reservationsMade.length > 0
+        ? reservationsMade
+        : (store.reservationIds || []);
+
+      if (ids.length > 0) {
+        ids.forEach((reservationId) => {
+          fetch(`${API_BASE_URL}/products/release`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ reservationId }),
+            keepalive: true,
+          }).catch(() => {});
+        });
+      }
+    };
+
+    window.addEventListener('pagehide', handleUnload);
+    window.addEventListener('beforeunload', handleUnload);
+
+    if (isAuthenticated) {
+      reserveItems();
+    }
+
+    // ── Cleanup: release reservations when user LEAVES checkout ───────────
+    // This fires when: user navigates back to cart, closes tab, or goes to
+    // another page WITHOUT completing payment. This prevents stock being
+    // locked for other users.
+    return () => {
+      window.removeEventListener('pagehide', handleUnload);
+      window.removeEventListener('beforeunload', handleUnload);
+
+      // If payment succeeded, the server already deducted stock via
+      // completeReservation — do NOT release here or we'd double-release.
+      if (paymentSucceeded.current) return;
+
+      const store = useCartStore.getState();
+      const ids = reservationsMade.length > 0
+        ? reservationsMade
+        : (store.reservationIds || []);
+
+      if (ids.length > 0) {
+        // Fire-and-forget: release all reservations silently
+        ids.forEach((reservationId) => {
+          productService.releaseStock(reservationId).catch(() => {
+            // Silently ignore — server will clean up via cron after 15 min
+          });
+        });
+        store.clearReservations();
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user?.uid]);
+
+  // ^ Intentionally only depends on auth, not items — we want reserve to run
+  //   once when entering checkout, and cleanup to run once when leaving.
+
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [policyAccepted, setPolicyAccepted] = useState(false);
 
@@ -98,22 +194,12 @@ export default function CheckoutPage() {
     : 0;
   const total = subtotal - discountAmount;
 
-  // If cart becomes empty during checkout, go back to shop
+  // If cart becomes empty during checkout (not because we cleared it), go back
   useEffect(() => {
-    if (items.length === 0 && step !== 3) {
+    if (items.length === 0 && step !== 2) {
       navigate('/shop');
     }
   }, [items, step, navigate]);
-
-  useEffect(() => {
-    if (step !== 3 || !successOrderId) return;
-
-    const timer = window.setTimeout(() => {
-      navigate('/orders', { replace: true });
-    }, 4200);
-
-    return () => window.clearTimeout(timer);
-  }, [step, successOrderId, navigate]);
 
   const handleApplyCoupon = async (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
@@ -152,69 +238,6 @@ export default function CheckoutPage() {
   };
 
   const validateStockBeforePayment = async (): Promise<boolean> => {
-    const validateCartItemsFromCatalog = async () => {
-      const errors: Record<string, string> = {};
-
-      await Promise.all(items.map(async (item) => {
-        const productId = getProductId(item.product);
-        const key = `${productId}-${item.size}`;
-
-        if (!productId) {
-          errors[key] = 'This item is missing a product ID';
-          return;
-        }
-
-        let catalogItem: CatalogStockItem | null = null;
-        try {
-          catalogItem = await productService.getProductById(productId);
-        } catch (productError) {
-          if (!axios.isAxiosError(productError) || productError.response?.status !== 404) {
-            throw productError;
-          }
-
-          try {
-            catalogItem = await saleService.getSaleById(productId);
-          } catch (saleError) {
-            if (axios.isAxiosError(saleError) && saleError.response?.status === 404) {
-              errors[key] = 'This item is no longer available';
-              removeItem(productId, item.size, getCartItemImage(item), item.color);
-              return;
-            }
-            throw saleError;
-          }
-        }
-
-        if (!catalogItem) {
-          errors[key] = 'This item is no longer available';
-          removeItem(productId, item.size, getCartItemImage(item), item.color);
-          return;
-        }
-
-        const catalogSizes = Array.isArray(catalogItem.sizes)
-          ? catalogItem.sizes
-          : String(catalogItem.sizes || '').split(',').map((size) => size.trim()).filter(Boolean);
-
-        if (catalogSizes.length > 0 && !catalogSizes.includes(item.size)) {
-          errors[key] = `${item.size} is no longer available`;
-          return;
-        }
-
-        const maxAvailable = catalogItem.sizeCounts?.[item.size] ?? catalogItem.stock ?? 0;
-        if (maxAvailable < item.quantity) {
-          errors[key] = `Only ${Math.max(0, maxAvailable)} available (tried to order ${item.quantity})`;
-        }
-      }));
-
-      if (Object.keys(errors).length > 0) {
-        setStockErrors(errors);
-        toast.error('Some cart items are unavailable.  review your cart.');
-        return false;
-      }
-
-      setStockErrors({});
-      return true;
-    };
-
     try {
       setValidatingStock(true);
       setStockErrors({});
@@ -249,9 +272,6 @@ export default function CheckoutPage() {
       return true;
     } catch (error) {
       console.error('Stock validation error:', error);
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
-        return validateCartItemsFromCatalog();
-      }
       toast.error('Unable to validate stock. Please try again.');
       return false;
     } finally {
@@ -412,6 +432,11 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (items.length === 0) {
+      toast.error('Your cart is empty');
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
@@ -421,61 +446,88 @@ export default function CheckoutPage() {
         return;
       }
 
-      // Validate stock before proceeding
-      const stockValid = await validateStockBeforePayment();
-      if (!stockValid) {
+      // 1. Validate Stock immediately before initiating payment
+      const isStockAvailable = await validateStockBeforePayment();
+      if (!isStockAvailable) {
         setIsProcessing(false);
         return;
       }
 
-      const phone = normalizeIndianPhone(formData.phone);
-      const orderData = {
-        items: items.map(item => {
-          const productId = getProductId(item.product);
-          if (!productId) {
-            throw new Error(`Product ${item.product.name} missing required ID`);
-          }
-
-          return {
-            productId,
-            name: item.product.name,
-            price: item.product.price,
-            image: getCartItemImage(item),
-            variantImage: getCartItemImage(item),
-            size: item.size,
-            color: item.color,
-            quantity: item.quantity,
-          };
-        }),
+      const orderData: CreateOrderData = {
+        items: items.map((item) => ({
+          productId: getProductId(item.product) || '',
+          name: item.product.name,
+          price: item.product.price,
+          image: item.product.image,
+          size: item.size,
+          quantity: item.quantity,
+          variantImage: getCartItemImage(item),
+          color: item.color,
+        })),
         shippingAddress: {
-          ...formData,
-          phone,
+          fullName: formData.fullName.trim(),
+          phone: formData.phone.trim(),
+          email: formData.email.trim() || user?.email || '',
+          address: formData.address.trim(),
+          city: formData.city.trim(),
+          state: formData.state.trim(),
           pincode: formData.pincode.trim(),
         },
         paymentMethod,
         couponCode: appliedCoupon?.code,
+        reservationIds: useCartStore.getState().reservationIds,
       };
 
-      // Razorpay payment
-      await initiatePayment({
-        amount: total,
-        orderData,
-        onSuccess: (orderId) => {
-          setSuccessOrderId(orderId);
-          setStep(3);
-          clearCart();
-          toast.success(`Order ${orderId} placed successfully!`);
-        },
-        onFailure: (error) => {
-          console.error('Payment failed:', error);
-          setIsProcessing(false);
-        },
-      });
-    } catch (error) {
-      console.error('Order placement error:', error);
-      toast.error('Failed to place order. Please try again.');
-    } finally {
+      if (paymentMethod === 'razorpay') {
+        await initiatePayment({
+          amount: total,
+          orderData,
+          total,
+          subtotal,
+          discountAmount,
+          onSuccess: (orderId: string, orderDetails) => {
+            // Mark payment as succeeded BEFORE navigating away so the unmount
+            // cleanup doesn't try to release reservations (server completed them)
+            paymentSucceeded.current = true;
+            // Clear the cart
+            clearCart();
+            // Navigate to the dedicated order success page with full details
+            navigate('/order-success', {
+              replace: true,
+              state: { order: orderDetails },
+            });
+          },
+          onFailure: (err: unknown) => {
+            const error = err as { message?: string };
+            setIsProcessing(false);
+            if (error.message && !error.message.includes('cancelled')) {
+              navigate('/payment-failed', { state: { error: error.message } });
+            }
+          },
+        });
+      } else {
+        // COD path
+        const orderRes = await orderService.createOrder(orderData);
+        clearCart();
+        navigate('/order-success', {
+          replace: true,
+          state: {
+            order: {
+              ...orderData,
+              orderId: orderRes.order.orderId,
+              total,
+              subtotal,
+              discount: discountAmount,
+              shipping: 0,
+            },
+          },
+        });
+      }
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } };
+      console.error('Order placement failed:', error);
       setIsProcessing(false);
+      toast.error(error.response?.data?.error || 'Failed to place order');
     }
   };
 
@@ -497,8 +549,9 @@ export default function CheckoutPage() {
     );
   }
 
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
       <Header />
 
       <main className="pt-24 pb-16">
@@ -517,7 +570,7 @@ export default function CheckoutPage() {
 
           {/* Progress Steps */}
           <div className="flex items-center justify-center gap-4 mb-12">
-            {[1, 2, 3].map((s) => (
+            {[1, 2].map((s) => (
               <div key={s} className="flex items-center gap-2">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-colors ${step >= s
@@ -528,9 +581,9 @@ export default function CheckoutPage() {
                   {step > s ? <Check size={18} /> : s}
                 </div>
                 <span className={`hidden sm:inline text-sm ${step >= s ? 'text-foreground' : 'text-muted-foreground'}`}>
-                  {s === 1 ? 'Address' : s === 2 ? 'Payment' : 'Confirmation'}
+                  {s === 1 ? 'Address' : 'Payment'}
                 </span>
-                {s < 3 && <div className="w-12 h-0.5 bg-border" />}
+                {s < 2 && <div className="w-12 h-0.5 bg-border" />}
               </div>
             ))}
           </div>
@@ -837,7 +890,15 @@ export default function CheckoutPage() {
 
                 {/* Order Items */}
                 <div className="bg-secondary rounded-lg p-6 mb-6">
-                  <h3 className="font-semibold mb-4">Order Items</h3>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-semibold text-lg text-foreground">Order Items</h3>
+                    <Link
+                      to="/cart"
+                      className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+                    >
+                      Edit Cart
+                    </Link>
+                  </div>
                   <div className="space-y-4">
                     {items.map((item, idx) => {
                       const productId = getProductId(item.product);
@@ -859,6 +920,7 @@ export default function CheckoutPage() {
                               <p>Category: {item.product.category}</p>
                               <p>Size: <span className="font-medium text-foreground">{item.size}</span></p>
                               {item.color && <p>Color: <span className="font-medium text-foreground">{item.color}</span></p>}
+                              <p>Qty: <span className="font-medium text-foreground">{item.quantity}</span></p>
                             </div>
                             {hasError && (
                               <p className="text-xs text-destructive font-medium mt-2 flex items-center gap-1">
@@ -866,49 +928,9 @@ export default function CheckoutPage() {
                                 {hasError}
                               </p>
                             )}
-                            
-                            {/* Quantity Controls */}
-                            <div className="flex items-center gap-2 mt-2">
-                              <button
-                                onClick={() => {
-                                  if (item.quantity > 1) {
-                                    removeItem(productId || '', item.size, getCartItemImage(item), item.color);
-                                    toast.success('Quantity decreased');
-                                  }
-                                }}
-                                className="p-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
-                                disabled={item.quantity <= 1}
-                                title="Decrease quantity"
-                              >
-                                <Minus size={14} />
-                              </button>
-                              <span className="px-2 py-1 text-sm font-medium bg-secondary rounded">
-                                Qty: {item.quantity}
-                              </span>
-                              <button
-                                onClick={() => {
-                                  toast.info('Add more items from cart');
-                                }}
-                                className="p-1 text-muted-foreground hover:text-primary transition-colors"
-                                title="Increase quantity"
-                              >
-                                <Plus size={14} />
-                              </button>
-                            </div>
                           </div>
-                          <div className="text-right flex flex-col justify-between items-end">
+                          <div className="text-right flex flex-col justify-center items-end">
                             <p className="font-bold text-sm text-primary">₹{(item.product.price * item.quantity).toLocaleString()}</p>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                removeItem(productId || '', item.size, item.variantImage, item.color);
-                                toast.success('Item removed from cart');
-                              }}
-                              className="p-1 text-muted-foreground hover:text-destructive transition-colors mt-2"
-                              title="Remove item"
-                            >
-                              <Trash2 size={16} />
-                            </button>
                           </div>
                         </div>
                       );
@@ -1021,105 +1043,6 @@ export default function CheckoutPage() {
             </motion.div>
           )}
 
-          {/* Step 3: Confirmation */}
-          {step === 3 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="relative min-h-[68vh] overflow-hidden rounded-lg bg-white py-16 text-center"
-            >
-              <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-                {successConfetti.map((piece, index) => (
-                  <motion.span
-                    key={`${piece.left}-${piece.top}-${index}`}
-                    initial={{ opacity: 0, y: -18, rotate: -20 }}
-                    animate={{ opacity: [0, 1, 1], y: [0, 18, 34], rotate: [0, 18, -8] }}
-                    transition={{ duration: 1.8, delay: piece.delay, repeat: Infinity, repeatDelay: 1.2 }}
-                    className={`absolute block ${
-                      piece.shape === 'circle'
-                        ? 'h-2.5 w-2.5 rounded-full'
-                        : piece.shape === 'line'
-                          ? 'h-10 w-1 rounded-full'
-                          : piece.shape === 'triangle'
-                            ? 'h-0 w-0 border-l-[7px] border-r-[7px] border-b-[12px] border-l-transparent border-r-transparent bg-transparent'
-                            : piece.shape === 'star'
-                              ? 'h-3 w-3 rotate-45'
-                              : piece.shape === 'plus'
-                                ? 'h-3 w-3'
-                                : piece.shape === 'squiggle'
-                                  ? 'h-3 w-8 rounded-full border-t-4 bg-transparent'
-                                  : 'h-3 w-3'
-                    }`}
-                    style={{
-                      left: piece.left,
-                      top: piece.top,
-                      backgroundColor: ['triangle', 'squiggle'].includes(piece.shape) ? undefined : piece.color,
-                      borderBottomColor: piece.shape === 'triangle' ? piece.color : undefined,
-                      borderTopColor: piece.shape === 'squiggle' ? piece.color : undefined,
-                    }}
-                  />
-                ))}
-              </div>
-
-              <div className="relative mx-auto flex min-h-[56vh] max-w-md flex-col items-center justify-center px-6">
-                <motion.div
-                  initial={{ scale: 0.7, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ type: 'spring', stiffness: 180, damping: 16 }}
-                  className="relative mb-8 flex h-36 w-36 items-center justify-center rounded-full bg-green-100"
-                >
-                  <motion.div
-                    initial={{ scale: 0.85 }}
-                    animate={{ scale: [0.95, 1.04, 0.95] }}
-                    transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-                    className="absolute inset-4 rounded-full bg-green-200/70"
-                  />
-                  <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-[#18c90f] shadow-[0_18px_45px_rgba(24,201,15,0.28)]">
-                    <Check className="text-white" size={58} strokeWidth={2.6} />
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.18 }}
-                >
-                  <h2 className="mb-3 text-2xl font-bold leading-tight text-neutral-950">
-                    Order placed successfully!
-                  </h2>
-                  <p className="mx-auto mb-2 max-w-xs text-sm leading-6 text-neutral-600">
-                    Payment received. Your order is confirmed and ready in your orders page.
-                  </p>
-                  {successOrderId && (
-                    <p className="mb-7 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                      Order {successOrderId}
-                    </p>
-                  )}
-                </motion.div>
-
-                <div className="flex w-full flex-col gap-3 sm:flex-row">
-                  <Link
-                    to="/orders"
-                    replace
-                    className="flex-1 rounded-full bg-neutral-950 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-950 focus:ring-offset-2"
-                  >
-                    View orders
-                  </Link>
-                  <Link
-                    to="/"
-                    replace
-                    className="flex-1 rounded-full border border-neutral-300 bg-white px-6 py-3 text-sm font-semibold text-neutral-950 transition-colors hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-950 focus:ring-offset-2"
-                  >
-                    Home
-                  </Link>
-                </div>
-
-                <p className="mt-5 text-xs text-neutral-500">
-                  Redirecting to orders in a moment.
-                </p>
-              </div>
-            </motion.div>
-          )}
         </div>
       </main>
 

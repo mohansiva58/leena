@@ -103,6 +103,21 @@ export const productService = {
         return response.data;
     },
 
+    reserveStock: async (data: {
+        productId: string;
+        size: string;
+        quantity: number;
+        sessionId: string;
+        userId?: string;
+    }): Promise<{ reservationId: string }> => {
+        const response = await api.post('/products/reserve', data);
+        return response.data;
+    },
+
+    releaseStock: async (reservationId: string): Promise<void> => {
+        await api.post('/products/release', { reservationId });
+    },
+
     getFeaturedProducts: async (): Promise<Product[]> => {
         const response = await api.get('/products/featured');
         return response.data;

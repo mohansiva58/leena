@@ -7,7 +7,9 @@ import {
     bulkCreateProducts,
     updateProduct,
     deleteProduct,
-    checkStockAvailability
+    checkStockAvailability,
+    reserveStock,
+    releaseStock
 } from '../controllers/productController';
 import { upload } from '../middleware/upload';
 import { authenticateUser } from '../middleware/auth';
@@ -17,6 +19,8 @@ const router = express.Router();
 
 router.get('/featured', getFeaturedProducts);
 router.post('/check-stock', checkStockAvailability);
+router.post('/reserve', reserveStock);
+router.post('/release', releaseStock);
 router.get('/', getAllProducts);
 router.get('/:id', getProductById);
 

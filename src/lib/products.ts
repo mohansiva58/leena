@@ -38,6 +38,7 @@ export interface Product {
   isBestseller?: boolean;
   stock?: number;
   sizeCounts?: Record<string, number>;
+  sizeReservedCounts?: Record<string, number>;
   setType?: string;
   colors?: ColorVariant[];
   cloudinaryId?: string;

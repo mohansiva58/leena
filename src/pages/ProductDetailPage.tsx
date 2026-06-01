@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Heart,
   Minus,
@@ -28,38 +29,61 @@ import { useCartStore, getProductId, getCartItemImage } from '@/lib/cart';
 import { useWishlistStore } from '@/lib/wishlist';
 
 import { useAuth } from '@/hooks/useAuth';
+import { useRealTimeStock } from '@/hooks/useRealTimeStock';
 
 import { productService } from '@/services/productService';
 import { saleService } from '@/services/saleService';
+import { Skeleton } from '@/components/ui/skeleton';
 
 import logo from '@/assets/logo.png';
 
 export default function ProductDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  useRealTimeStock();
 
-  const [product, setProduct] =
-    useState<Product | null>(null);
-
-  const [recentProducts, setRecentProducts] =
-    useState<Product[]>([]);
-
-  const [loading, setLoading] = useState(true);
-
-  const [selectedSize, setSelectedSize] =
-    useState<string | null>(null);
-
-  const [selectedColor, setSelectedColor] =
-    useState<string | null>(null);
-
-  const [selectedImage, setSelectedImage] =
-    useState<string>();
-
+  const [selectedImage, setSelectedImage] = useState<string | undefined>();
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [sizeCounts, setSizeCounts] = useState<Record<string, number>>({});
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
-  const [showAuthModal, setShowAuthModal] =
-    useState(false);
+  // Fetch product using React Query
+  const { data: product, isLoading: loading } = useQuery({
+    queryKey: ['product', id],
+    queryFn: async () => {
+      if (!id) return null;
+      try {
+        return await productService.getProductById(id);
+      } catch (err: unknown) {
+        const error = err as { response?: { status?: number } };
+        if (error?.response?.status === 404) {
+          const sale = await saleService.getSaleById(id);
+          return {
+            ...sale,
+            productId: sale.saleId || sale._id,
+            id: sale._id,
+          } as Product;
+        }
+        throw err;
+      }
+    },
+    enabled: !!id,
+  });
+
+  // Fetch recent products
+  const { data: recentProducts = [] } = useQuery({
+    queryKey: ['products', 'recent', id],
+    queryFn: async () => {
+      const response = await productService.getPagedProducts({ page: 1, limit: 8 });
+      const currentProductIds = new Set([id, product?.productId, product?.id, product?._id].filter(Boolean));
+      return response.items
+        .filter((p: Product) => !currentProductIds.has(p.productId) && !currentProductIds.has(p.id) && !currentProductIds.has(p._id))
+        .slice(0, 4);
+    },
+    enabled: !!product,
+  });
 
   const addItem = useCartStore(
     (state) => state.addItem
@@ -150,120 +174,57 @@ export default function ProductDetailPage() {
     return true;
   };
 
-  const {
-    addItem: addToWishlist,
-    removeItem: removeFromWishlist,
-    isInWishlist,
-  } = useWishlistStore();
+  const { user, isAuthenticated } = useAuth();
+  const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlistStore();
+  const isWishlisted = isInWishlist(id || '');
 
-  const { isAuthenticated } = useAuth();
-
-  const isWishlisted = product
-    ? isInWishlist(
-      product.productId ||
-      product.id ||
-      product._id ||
-      ''
-    )
-    : false;
-
-  /* FETCH PRODUCT */
+  // Update selected color/image when product loads
+  useEffect(() => {
+    if (product) {
+      if (product.colors && product.colors.length > 0 && !selectedColor) {
+        setSelectedColor(product.colors[0].colorName);
+        setSelectedImage(product.colors[0].image?.url || product.image);
+      } else if (!selectedImage) {
+        setSelectedImage(product.image);
+      }
+    }
+  }, [product, selectedColor, selectedImage]);
 
   useEffect(() => {
-    const fetchProduct = async () => {
-      if (!id) return;
-
-      setLoading(true);
-      setSelectedSize(null);
-      setSelectedColor(null);
-      setSelectedImage(undefined);
-      setQuantity(1);
-      setSizeCounts({});
-
-      try {
-        let data: Product | null = null;
-
-        try {
-          data =
-            await productService.getProductById(id);
-        } catch (productError: unknown) {
-          const error = productError as {
-            response?: { status?: number };
-          };
-
-          if (error?.response?.status === 404) {
-            const saleData =
-              await saleService.getSaleById(id);
-
-            const sale = saleData as {
-              saleId?: string;
-              _id?: string;
-            };
-
-            data = {
-              ...saleData,
-              productId: sale.saleId || sale._id,
-              id: sale._id,
-            } as Product;
-          } else {
-            throw productError;
-          }
-        }
-
-        if (!data) return;
-
-        setProduct(data);
-
-        if (data.colors && data.colors.length > 0) {
-          setSelectedColor(data.colors[0].colorName);
-          setSelectedImage(data.colors[0].image?.url || data.image);
-        } else {
-          setSelectedImage(data.image);
-        }
-
-        const recentResponse =
-          await productService.getPagedProducts({
-            page: 1,
-            limit: 8,
-          });
-
-        const currentProductIds = new Set(
-          [id, data.productId, data.id, data._id].filter(Boolean)
-        );
-
-        const filtered = recentResponse.items
-          .filter(
-            (p: Product) =>
-              !currentProductIds.has(p.productId) &&
-              !currentProductIds.has(p.id) &&
-              !currentProductIds.has(p._id)
-          )
-          .slice(0, 4);
-
-        setRecentProducts(filtered);
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProduct();
-
+    // Reset selections when product ID changes
+    setSelectedSize(null);
+    setSelectedColor(null);
+    setSelectedImage(undefined);
+    setQuantity(1);
+    setSizeCounts({});
     window.scrollTo(0, 0);
   }, [id]);
-
-  /* LOADING */
 
   if (loading) {
     return (
       <div className="min-h-screen bg-white">
         <Header />
-
-        <div className="flex h-screen items-center justify-center">
-          <img src={logo} alt="Loading..." className="h-12 w-auto animate-pulse" />
-        </div>
-
+        <main className="max-w-7xl mx-auto px-4 py-8 pt-24">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+            <Skeleton className="aspect-[3/4] rounded-3xl" />
+            <div className="space-y-6">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-10 w-3/4" />
+              <Skeleton className="h-8 w-1/4" />
+              <Skeleton className="h-32 w-full rounded-2xl" />
+              <div className="space-y-4">
+                <Skeleton className="h-6 w-20" />
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-10 w-16 rounded-full" />)}
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <Skeleton className="h-14 flex-1 rounded-full" />
+                <Skeleton className="h-14 flex-1 rounded-full" />
+              </div>
+            </div>
+          </div>
+        </main>
         <Footer />
       </div>
     );
@@ -339,14 +300,23 @@ export default function ProductDetailPage() {
     ? product.sizes
     : String(product.sizes || '').split(',').map((size) => size.trim()).filter(Boolean);
   const sizeAvailability = product.sizeCounts || {};
+  const sizeReserved = product.sizeReservedCounts || {};
+
+  // Available stock per size: Total - Reserved
+   const getAvailableStock = (size: string) => {
+     const total = sizeAvailability[size] || 0;
+     const reserved = sizeReserved[size] || 0;
+     return Math.max(0, total - reserved);
+   };
+
+   const totalAvailableStock = Object.keys(sizeAvailability).length > 0
+    ? Object.keys(sizeAvailability).reduce((acc, size) => acc + getAvailableStock(size), 0)
+    : Math.max(0, (product.stock || 0) - Object.values(sizeReserved).reduce((a, b) => a + b, 0));
 
   /* ADD TO CART */
 
   const handleAddToCart = () => {
-    if (
-      product.stock !== undefined &&
-      product.stock <= 0
-    ) {
+    if (totalAvailableStock <= 0) {
       toast.error('Out of stock');
       return;
     }
@@ -360,16 +330,49 @@ export default function ProductDetailPage() {
 
   /* BUY NOW */
 
-  const handleBuyNow = () => {
+  const handleBuyNow = async () => {
+    if (totalAvailableStock <= 0) {
+      toast.error('Out of stock');
+      return;
+    }
     if (!isAuthenticated) {
       setShowAuthModal(true);
       return;
     }
 
-    const success = addSelectionsToCart();
+    const selections = getSelectedSizeEntries();
+    if (selections.length === 0) {
+      toast.error('Please select a size');
+      return;
+    }
 
-    if (success) {
-      navigate('/checkout');
+    const loadingToastId = 'product-reservation';
+    toast.loading('Securing item...', { id: loadingToastId });
+    try {
+      const sessionId = useCartStore.getState().sessionId;
+      const reservationIds: string[] = [];
+
+      for (const selection of selections) {
+        const res = await productService.reserveStock({
+          productId: getProductId(product as Product),
+          size: selection.size,
+          quantity: selection.quantity,
+          sessionId,
+          userId: user?.uid
+        });
+        reservationIds.push(res.reservationId);
+      }
+
+      useCartStore.getState().setReservationIds(reservationIds);
+      
+      const success = addSelectionsToCart();
+      if (success) {
+        toast.success('Item secured for checkout!', { id: loadingToastId });
+        navigate('/checkout');
+      }
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } };
+      toast.error(error.response?.data?.error || 'Failed to reserve stock. It might be out of stock.', { id: loadingToastId });
     }
   };
 
@@ -630,25 +633,28 @@ export default function ProductDetailPage() {
                 {product.stock !== undefined && (
                   <div className="mt-4">
                     <div
-                      className="
+                      className={`
                         inline-flex
                         items-center
                         gap-2
                         rounded-full
                         border
-                        border-green-200
-                        bg-green-50
                         px-4
                         py-2
                         text-sm
                         font-medium
-                        text-green-700
-                      "
+                        transition-all
+                        duration-300
+                        ${totalAvailableStock > 0 
+                          ? 'border-green-200 bg-green-50 text-green-700' 
+                          : 'border-red-200 bg-red-50 text-red-700'
+                        }
+                      `}
                     >
-                      <div className="h-2 w-2 rounded-full bg-green-500" />
+                      <div className={`h-2 w-2 rounded-full ${totalAvailableStock > 0 ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
 
-                      {product.stock > 0
-                        ? `${product.stock} In Stock`
+                      {totalAvailableStock > 0
+                        ? `${totalAvailableStock} In Stock`
                         : 'Out Of Stock'}
                     </div>
                   </div>
@@ -712,12 +718,17 @@ export default function ProductDetailPage() {
 
                 <div className="flex flex-wrap gap-2">
                   {availableSizes.map((size) => {
-                    const remaining = sizeAvailability[size];
-                    const isOutOfStock = typeof remaining === 'number' ? remaining <= 0 : (product.stock ?? 0) <= 0;
+                    const remaining = getAvailableStock(size);
+                    const isOutOfStock = remaining <= 0;
 
                     return (
-                    <button
-                      key={size}
+                    <motion.button
+                      key={`${size}-${remaining}`}
+                      initial={false}
+                      animate={remaining === 0 ? {
+                        backgroundColor: ["#ffffff", "#fee2e2", "#f9fafb"],
+                        transition: { duration: 0.8 }
+                      } : {}}
                       disabled={isOutOfStock}
                       onClick={() =>
                         setSelectedSize(size)
@@ -731,21 +742,41 @@ export default function ProductDetailPage() {
                         text-sm
                         font-medium
                         transition-all
+                        relative
+                        overflow-hidden
                         ${isOutOfStock
-                          ? 'cursor-not-allowed border-neutral-200 bg-neutral-100 text-neutral-400'
+                          ? 'cursor-not-allowed border-neutral-200 bg-neutral-50 text-neutral-400'
                           : selectedSize === size
                             ? 'border-black bg-black text-white'
-                            : 'border-neutral-300 bg-white text-black'
+                            : 'border-neutral-300 bg-white text-black hover:border-black'
                         }
                       `}
                     >
-                      <span className="flex items-center gap-2">
+                      {/* Strike-through for Out of Stock */}
+                      <AnimatePresence>
+                        {isOutOfStock && (
+                          <motion.div 
+                            initial={{ width: 0, opacity: 0 }}
+                            animate={{ width: "140%", opacity: 1 }}
+                            className="absolute inset-0 flex items-center justify-center pointer-events-none z-20"
+                          >
+                            <div className="w-full h-[2px] bg-red-500 -rotate-[35deg] transform origin-center shadow-sm" />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                      
+                      <span className="flex items-center gap-2 relative z-10">
                         <span>{size}</span>
-                        <span className="text-[10px] opacity-75">
-                          {typeof remaining === 'number' ? `${remaining} left` : ''}
-                        </span>
+                        <motion.span 
+                          key={remaining}
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className={`text-[10px] ${isOutOfStock ? 'text-neutral-400' : 'opacity-75'}`}
+                        >
+                          {isOutOfStock ? 'Out' : `${remaining} left`}
+                        </motion.span>
                       </span>
-                    </button>
+                    </motion.button>
                   )})}
                 </div>
 
@@ -876,6 +907,7 @@ export default function ProductDetailPage() {
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={handleAddToCart}
+                  disabled={totalAvailableStock <= 0}
                   className="
                     flex
                     flex-1
@@ -884,12 +916,15 @@ export default function ProductDetailPage() {
                     gap-2
                     rounded-full
                     border
-                    border-neutral-300
+                    border-neutral-200
                     bg-white
                     py-4
                     font-semibold
+                    text-black
                     transition-all
-                    hover:bg-neutral-100
+                    hover:bg-neutral-50
+                    disabled:opacity-50
+                    disabled:cursor-not-allowed
                   "
                 >
                   <ShoppingBag size={18} />
@@ -898,6 +933,7 @@ export default function ProductDetailPage() {
 
                 <button
                   onClick={handleBuyNow}
+                  disabled={totalAvailableStock <= 0}
                   className="
                     flex-1
                     rounded-full
@@ -907,6 +943,8 @@ export default function ProductDetailPage() {
                     text-white
                     transition-all
                     hover:opacity-90
+                    disabled:opacity-50
+                    disabled:cursor-not-allowed
                   "
                 >
                   Buy Now

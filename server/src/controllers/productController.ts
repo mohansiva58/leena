@@ -17,6 +17,9 @@ import {
 } from '../utils/itemHelpers';
 import mongoose from 'mongoose';
 
+import { StockReservationService } from '../services/StockReservationService';
+import { getIO } from '../socket';
+
 const findStockCatalogItem = async (productId: string) => {
     const product = await Product.findOne({ productId }).lean();
     if (product) return { item: product, id: product.productId };
@@ -36,9 +39,10 @@ const findStockCatalogItem = async (productId: string) => {
 };
 
 /** Invalidate all product caches */
-const invalidateProductCache = async (productId?: string) => {
+const invalidateProductCache = async (product?: { _id?: mongoose.Types.ObjectId | string; productId?: string }) => {
     await cacheInvalidatePrefix('products:');
-    if (productId) await cacheDel(`product:${productId}`);
+    if (product?._id) await cacheDel(`product:${product._id}`);
+    if (product?.productId) await cacheDel(`product:${product.productId}`);
 };
 
 const warmProductReadCaches = async () => {
@@ -184,6 +188,55 @@ export const bulkCreateProducts = async (req: AuthRequest, res: Response): Promi
     } catch (error: unknown) {
         console.error('Bulk create error:', error);
         const errorMessage = error instanceof Error ? error.message : 'Failed to bulk create products';
+        res.status(500).json({ error: errorMessage });
+    }
+};
+
+/**
+ * Reserve stock for items.
+ * POST body: { productId, size, quantity, sessionId, userId }
+ */
+export const reserveStock = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { productId, size, quantity, sessionId, userId } = req.body;
+
+        if (!productId || !size || !quantity || !sessionId) {
+            res.status(400).json({ error: 'Missing required reservation fields' });
+            return;
+        }
+
+        const reservation = await StockReservationService.reserveStock(
+            productId,
+            size,
+            Number(quantity),
+            sessionId,
+            userId
+        );
+
+        res.status(201).json(reservation);
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Reservation failed';
+        res.status(409).json({ error: errorMessage });
+    }
+};
+
+/**
+ * Release stock reservation.
+ * POST body: { reservationId }
+ */
+export const releaseStock = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { reservationId } = req.body;
+
+        if (!reservationId) {
+            res.status(400).json({ error: 'Reservation ID is required' });
+            return;
+        }
+
+        await StockReservationService.releaseStock(reservationId);
+        res.status(200).json({ success: true, message: 'Stock released' });
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Release failed';
         res.status(500).json({ error: errorMessage });
     }
 };
@@ -361,8 +414,36 @@ export const updateProduct = async (req: AuthRequest, res: Response): Promise<vo
             await deleteFromCloudinary(existing.cloudinaryIds);
         }
 
-        await invalidateProductCache(id);
+        await invalidateProductCache(updated);
         await warmProductReadCaches();
+
+        // Broadcast stock updates via Socket.IO immediately to all clients
+        try {
+            const io = getIO();
+            if (io) {
+                const sizeCounts = updated.sizeCounts instanceof Map
+                    ? Object.fromEntries(updated.sizeCounts)
+                    : (updated.sizeCounts as Record<string, number> || {});
+                const sizeReserved = updated.sizeReservedCounts instanceof Map
+                    ? Object.fromEntries(updated.sizeReservedCounts)
+                    : (updated.sizeReservedCounts as Record<string, number> || {});
+                
+                const sizesToUpdate = Array.isArray(updated.sizes) ? updated.sizes : [];
+                for (const size of sizesToUpdate) {
+                    const total = sizeCounts[size] || 0;
+                    const reserved = sizeReserved[size] || 0;
+                    const available = Math.max(0, total - reserved);
+                    io.emit('stockUpdate', {
+                        productId: updated.productId,
+                        size,
+                        stock: available
+                    });
+                }
+            }
+        } catch (socketErr) {
+            console.error('Failed to broadcast admin stock update:', socketErr);
+        }
+
         await writeAudit(req.user!.uid, req.user!.email, 'product_update', 'product', id, {});
         res.json(updated);
     } catch (error: unknown) {
@@ -386,7 +467,7 @@ export const deleteProduct = async (req: AuthRequest, res: Response): Promise<vo
         );
         await cacheInvalidatePrefix('cart:');
         await deleteFromCloudinary([deleted.cloudinaryId, ...(deleted.cloudinaryIds || [])].filter(Boolean) as string[]);
-        await invalidateProductCache(id);
+        await invalidateProductCache(deleted);
         await warmProductReadCaches();
         await writeAudit(req.user!.uid, req.user!.email, 'product_delete', 'product', id, {});
         res.json({ message: 'Product deleted successfully' });

@@ -7,8 +7,10 @@ import { Footer } from '@/components/Footer';
 import { ProductCard } from '@/components/ProductCard';
 import { sizes, categories, Product } from '@/lib/products';
 import { productService } from '@/services/productService';
+import { useRealTimeStock } from '@/hooks/useRealTimeStock';
 
 export default function ShopPage() {
+  useRealTimeStock();
   const PAGE_SIZE = 12;
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();

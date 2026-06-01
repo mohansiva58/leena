@@ -17,9 +17,10 @@ import {
 import mongoose from 'mongoose';
 
 /** Invalidate all sale caches */
-const invalidateSaleCache = async (saleId?: string) => {
+const invalidateSaleCache = async (sale?: { _id?: mongoose.Types.ObjectId | string; saleId?: string }) => {
     await cacheInvalidatePrefix('sales:');
-    if (saleId) await cacheDel(`sale:${saleId}`);
+    if (sale?._id) await cacheDel(`sale:${sale._id}`);
+    if (sale?.saleId) await cacheDel(`sale:${sale.saleId}`);
 };
 
 const warmSaleReadCaches = async () => {
@@ -162,7 +163,7 @@ export const updateSale = async (req: AuthRequest, res: Response): Promise<void>
             await deleteFromCloudinary(existing.cloudinaryIds);
         }
 
-        await invalidateSaleCache(id);
+        await invalidateSaleCache(updated);
         await warmSaleReadCaches();
         await writeAudit(req.user!.uid, req.user!.email, 'sale_update', 'sale', id, {});
         res.json(updated);
@@ -187,7 +188,7 @@ export const deleteSale = async (req: AuthRequest, res: Response): Promise<void>
         );
         await cacheInvalidatePrefix('cart:');
         await deleteFromCloudinary([deleted.cloudinaryId, ...(deleted.cloudinaryIds || [])].filter(Boolean) as string[]);
-        await invalidateSaleCache(id);
+        await invalidateSaleCache(deleted);
         await warmSaleReadCaches();
         await writeAudit(req.user!.uid, req.user!.email, 'sale_delete', 'sale', id, {});
         res.json({ message: 'Sale item deleted successfully' });

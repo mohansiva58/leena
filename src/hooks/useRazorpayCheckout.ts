@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { paymentService } from '@/services/paymentService';
 import { orderService, CreateOrderData } from '@/services/orderService';
@@ -62,8 +63,11 @@ interface RazorpayResponse {
 interface RazorpayCheckoutProps {
     amount: number;
     orderData: CreateOrderData;
-    onSuccess: (orderId: string) => void;
+    onSuccess: (orderId: string, orderDetails: CreateOrderData & { total: number; subtotal: number; discount: number }) => void;
     onFailure: (error: unknown) => void;
+    total: number;
+    subtotal: number;
+    discountAmount: number;
 }
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -71,14 +75,15 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export const useRazorpayCheckout = () => {
     const { user } = useAuth();
     const inFlight = useRef(false);
+    const navigate = useNavigate();
 
-    const initiatePayment = async ({ amount, orderData, onSuccess, onFailure }: RazorpayCheckoutProps) => {
+    const initiatePayment = async ({ amount, orderData, onSuccess, onFailure, total, subtotal, discountAmount }: RazorpayCheckoutProps) => {
         try {
             if (!user) {
                 throw new Error('Please login to continue');
             }
             if (inFlight.current) {
-                toast.message('పేమెంట్ ఇప్పటికే ప్రారంభమైంది');
+                toast.message('Payment already in progress');
                 return;
             }
             inFlight.current = true;
@@ -138,7 +143,13 @@ export const useRazorpayCheckout = () => {
                 },
                 handler: async function (response: RazorpayResponse) {
                     try {
-                        // Verify payment
+                        // ──────────────────────────────────────────────────────────
+                        // Payment succeeded in Razorpay — navigate to /processing
+                        // immediately so user NEVER sees checkout page again
+                        // ──────────────────────────────────────────────────────────
+                        navigate('/processing', { replace: true });
+
+                        // Verify payment signature with backend
                         await paymentService.verifyPayment({
                             razorpayOrderId: response.razorpay_order_id,
                             razorpayPaymentId: response.razorpay_payment_id,
@@ -156,6 +167,7 @@ export const useRazorpayCheckout = () => {
                         let orderRes: Awaited<ReturnType<typeof orderService.createOrder>> | null = null;
                         let lastCreateError: unknown = null;
 
+                        // Retry up to 3 times with exponential backoff
                         for (const delay of [0, 1000, 2500]) {
                             if (delay) await wait(delay);
                             try {
@@ -172,10 +184,24 @@ export const useRazorpayCheckout = () => {
                         }
 
                         clearPendingPaidOrder();
-                        toast.success(`Payment successful! Order ${orderRes.order.orderId} placed.`);
-                        onSuccess(orderRes.order.orderId);
+
+                        // Navigate to the order success page with full order details
+                        const orderDetails = {
+                            ...paidOrderData,
+                            orderId: orderRes.order.orderId,
+                            orderStatus: orderRes.order.orderStatus,
+                            paymentStatus: orderRes.order.paymentStatus,
+                            total,
+                            subtotal,
+                            discount: discountAmount,
+                            shipping: 0,
+                        };
+
+                        onSuccess(orderRes.order.orderId, orderDetails);
                     } catch (error) {
-                        console.error('Payment verification failed:', error);
+                        console.error('Payment verification/order creation failed:', error);
+                        
+                        // Try to recover from recent orders
                         try {
                             const recentOrders = await orderService.getOrders({ limit: 1 });
                             const latestOrder = Array.isArray(recentOrders?.orders)
@@ -185,14 +211,22 @@ export const useRazorpayCheckout = () => {
                                     : null;
 
                             if (latestOrder?.orderId) {
-                                toast.success(`Payment successful! Order ${latestOrder.orderId} placed.`);
-                                onSuccess(latestOrder.orderId);
+                                const recoveredOrderDetails = {
+                                    ...orderData,
+                                    orderId: latestOrder.orderId,
+                                    total,
+                                    subtotal,
+                                    discount: discountAmount,
+                                    shipping: 0,
+                                };
+                                onSuccess(latestOrder.orderId, recoveredOrderDetails);
                                 return;
                             }
                         } catch (reconcileError) {
                             console.error('Order reconciliation failed:', reconcileError);
                         }
-                        toast.error('Payment verification failed');
+
+                        toast.error('Payment received but order creation failed. Contact support.');
                         onFailure(error);
                     } finally {
                         inFlight.current = false;

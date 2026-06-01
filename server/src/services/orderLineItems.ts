@@ -3,6 +3,7 @@ import Product from '../models/Product';
 import Sale from '../models/Sale';
 import { resolveSizeQuantities } from '../utils/sizeQuantities';
 import { cacheInvalidatePrefix, cacheDel } from '../utils/cache';
+import { StockReservationService } from './StockReservationService';
 
 interface ImageItem {
     image: string;
@@ -148,37 +149,59 @@ export async function decrementStockForLines(
     lines: ResolvedLine[],
     session?: mongoose.ClientSession
 ): Promise<void> {
-    for (const line of lines) {
-        if (line.source === 'product') {
-            const sizeKey = `sizeCounts.${line.size}`;
+    // Group by source and productId to prevent partial success on same item
+    const grouped = lines.reduce((acc, line) => {
+        const key = `${line.source}:${line.productId}`;
+        if (!acc[key]) {
+            acc[key] = { source: line.source, productId: line.productId, quantity: 0, sizes: {} as Record<string, number> };
+        }
+        acc[key].quantity += line.quantity;
+        acc[key].sizes[line.size] = (acc[key].sizes[line.size] || 0) + line.quantity;
+        return acc;
+    }, {} as Record<string, { source: string, productId: string, quantity: number, sizes: Record<string, number> }>);
+
+    for (const key in grouped) {
+        const { source, productId, quantity, sizes } = grouped[key];
+        
+        if (source === 'product') {
+            const sizeUpdate: Record<string, number> = {};
+            for (const size in sizes) {
+                sizeUpdate[`sizeCounts.${size}`] = -sizes[size];
+            }
+
             const res = await Product.updateOne(
                 {
-                    productId: line.productId,
-                    stock: { $gte: line.quantity },
-                    $or: [{ sizeCounts: { $exists: false } }, { [sizeKey]: { $gte: line.quantity } }],
+                    productId,
+                    stock: { $gte: quantity },
+                    $and: Object.keys(sizes).map(size => ({
+                        $or: [
+                            { sizeCounts: { $exists: false } },
+                            { [`sizeCounts.${size}`]: { $gte: sizes[size] } }
+                        ]
+                    }))
                 },
-                { $inc: { stock: -line.quantity, [sizeKey]: -line.quantity } },
+                { $inc: { stock: -quantity, ...sizeUpdate } },
                 session ? { session } : {}
             );
+
             if (res.modifiedCount !== 1) {
-                throw new Error(`Stock conflict for product ${line.productId}`);
+                throw new Error(`Stock conflict: Item ${productId} is out of stock or does not have requested quantity`);
             }
-            // Invalidate cache for this product after stock update
-            await cacheDel(`product:${line.productId}`);
+            await cacheDel(`product:${productId}`);
+            // Broadcast real-time stock update for all affected sizes
+            StockReservationService.broadcastStockUpdate(productId).catch(() => {});
         } else {
             const res = await Sale.updateOne(
-                { saleId: line.productId, stock: { $gte: line.quantity } },
-                { $inc: { stock: -line.quantity } },
+                { saleId: productId, stock: { $gte: quantity } },
+                { $inc: { stock: -quantity } },
                 session ? { session } : {}
             );
             if (res.modifiedCount !== 1) {
-                throw new Error(`Stock conflict for sale item ${line.productId}`);
+                throw new Error(`Stock conflict: Sale item ${productId} is out of stock`);
             }
-            // Invalidate cache for this sale item after stock update
-            await cacheDel(`sale:${line.productId}`);
+            await cacheDel(`sale:${productId}`);
         }
     }
-    // Also invalidate all product list caches to show updated stock immediately
     await cacheInvalidatePrefix('products:');
 }
 
@@ -196,6 +219,8 @@ export async function incrementStockForLines(
             );
             // Invalidate cache for this product after stock update
             await cacheDel(`product:${line.productId}`);
+            // Broadcast real-time stock update
+            StockReservationService.broadcastStockUpdate(line.productId).catch(() => {});
         } else {
             await Sale.updateOne(
                 { saleId: line.productId },

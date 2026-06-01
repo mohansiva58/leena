@@ -63,6 +63,9 @@ export const authService = {
 
     // Get ID Token
     getIdToken: async (): Promise<string | null> => {
+        if (typeof auth.authStateReady === 'function') {
+            await auth.authStateReady();
+        }
         const user = auth.currentUser;
         if (user) {
             return await user.getIdToken();

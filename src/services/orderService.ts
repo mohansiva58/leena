@@ -7,6 +7,8 @@ export interface OrderItem {
     image: string;
     size: string;
     quantity: number;
+    variantImage?: string;
+    color?: string;
 }
 
 export interface ShippingAddress {
@@ -22,11 +24,12 @@ export interface ShippingAddress {
 export interface CreateOrderData {
     items: OrderItem[];
     shippingAddress: ShippingAddress;
-    paymentMethod: 'razorpay';
+    paymentMethod: 'razorpay' | 'cod';
+    couponCode?: string;
+    reservationIds?: string[];
     razorpayOrderId?: string;
     razorpayPaymentId?: string;
     razorpaySignature?: string;
-    couponCode?: string;
 }
 
 export interface Order {

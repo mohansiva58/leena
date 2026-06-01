@@ -18,6 +18,9 @@ const AdminPage = lazy(() => import("./pages/AdminPage"));
 const OrdersPage = lazy(() => import("./pages/OrdersPage"));
 const AboutPage = lazy(() => import("./pages/Aboutpage"));
 const WishlistPage = lazy(() => import("./pages/WishlistPage"));
+const ProcessingPage = lazy(() => import("./pages/ProcessingPage"));
+const OrderSuccessPage = lazy(() => import("./pages/OrderSuccessPage"));
+const PaymentFailedPage = lazy(() => import("./pages/PaymentFailedPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 import { WhatsAppButton } from "./components/WhatsAppButton";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -49,6 +52,9 @@ const App = () => (
               <Route path="/cart" element={<CartPage />} />
               <Route path="/wishlist" element={<WishlistPage />} />
               <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
+              <Route path="/processing" element={<ProcessingPage />} />
+              <Route path="/order-success" element={<OrderSuccessPage />} />
+              <Route path="/payment-failed" element={<PaymentFailedPage />} />
               <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/about" element={<AboutPage />} />

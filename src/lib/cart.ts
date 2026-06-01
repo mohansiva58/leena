@@ -12,17 +12,23 @@ export interface CartItem {
 
 interface CartStore {
   items: CartItem[];
+  sessionId: string;
+  reservationIds: string[];
   addItem: (product: Product, size: string, quantity?: number, variantImage?: string, color?: string) => boolean;
   removeItem: (productId: string, size: string, variantImage?: string, color?: string) => void;
   updateQuantity: (productId: string, size: string, quantity: number, variantImage?: string, color?: string) => boolean;
   clearCart: () => void;
   getTotalItems: () => number;
   getTotalPrice: () => number;
+  setReservationIds: (ids: string[]) => void;
+  clearReservations: () => void;
 }
 
 export const getProductId = (product: Product): string => {
   return product.productId || product.id || product._id || '';
 };
+
+const generateSessionId = () => `sess_${Math.random().toString(36).substring(2, 15)}`;
 
 export const getCartItemImage = (item: CartItem): string => {
   return item.variantImage || item.product.image;
@@ -36,6 +42,8 @@ export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
       items: [],
+      sessionId: generateSessionId(),
+      reservationIds: [],
 
       addItem: (product, size, quantity = 1, variantImage, color) => {
         if (product.stock !== undefined && product.stock <= 0) {
@@ -121,7 +129,17 @@ export const useCartStore = create<CartStore>()(
         return true;
       },
 
-      clearCart: () => set({ items: [] }),
+      clearCart: () => {
+        set({ items: [], reservationIds: [] });
+      },
+
+      setReservationIds: (ids: string[]) => {
+        set({ reservationIds: ids });
+      },
+
+      clearReservations: () => {
+        set({ reservationIds: [] });
+      },
 
       getTotalItems: () => {
         return get().items.reduce((total, item) => total + item.quantity, 0);

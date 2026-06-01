@@ -1,10 +1,10 @@
 import { Response } from 'express';
 import mongoose from 'mongoose';
 import { AuthRequest } from '../middleware/auth';
-import Cart from '../models/Cart';
+import Cart, { ICart, ICartItem } from '../models/Cart';
 import Product from '../models/Product';
 import Sale from '../models/Sale';
-import { cacheGet, cacheSet, cacheDel, CACHE_TTL } from '../utils/cache';
+import { cacheSet, cacheDel, CACHE_TTL } from '../utils/cache';
 import { resolveSizeQuantities } from '../utils/sizeQuantities';
 
 interface ImageItem {
@@ -53,20 +53,36 @@ const findCartCatalogItem = async (productId: string) => {
     return null;
 };
 
+const removeMissingCartItems = async (cart: ICart | null): Promise<ICart | null> => {
+    if (!cart?.items?.length) return cart;
+
+    const checks = await Promise.all(
+        cart.items.map(async (item: ICartItem) => ({
+            item,
+            exists: Boolean(await findCartCatalogItem(item.productId)),
+        }))
+    );
+
+    const validItems = checks.filter((check) => check.exists).map((check) => check.item);
+    if (validItems.length !== cart.items.length) {
+        cart.items = validItems as typeof cart.items;
+        await cart.save();
+    }
+
+    return cart;
+};
+
 export const getCart = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const userId = req.user?.uid;
         if (!userId) { res.status(401).json({ error: 'Unauthorized' }); return; }
 
-        // Try cache
-        const cached = await cacheGet(getCacheKey(userId));
-        if (cached) { res.json(cached); return; }
-
         let cart = await Cart.findOne({ userId });
         if (!cart) cart = await Cart.create({ userId, items: [] });
+        const cleanedCart = await removeMissingCartItems(cart);
 
-        await cacheSet(getCacheKey(userId), cart, CACHE_TTL.CART);
-        res.json(cart);
+        await cacheSet(getCacheKey(userId), cleanedCart, CACHE_TTL.CART);
+        res.json(cleanedCart);
     } catch (error) {
         console.error('Get cart error:', error);
         res.status(500).json({ error: 'Failed to fetch cart' });

@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCartStore, getProductId, getCartItemImage } from '@/lib/cart';
 import { cartService } from '@/services/cartService';
 import type { Product } from '@/lib/products';
+import axios from 'axios';
 
 function serverLineToProduct(line: {
   productId: string;
@@ -56,7 +57,15 @@ export function CartServerSync() {
         } else if (localItems.length) {
           for (const row of localItems) {
             const pid = getProductId(row.product);
-            await cartService.addToCart(pid, row.size, row.quantity, getCartItemImage(row), row.color);
+            try {
+              await cartService.addToCart(pid, row.size, row.quantity, getCartItemImage(row), row.color);
+            } catch (error) {
+              if (axios.isAxiosError(error) && error.response?.status === 404) {
+                useCartStore.getState().removeItem(pid, row.size, getCartItemImage(row), row.color);
+                continue;
+              }
+              throw error;
+            }
           }
           const refreshed = await cartService.getCart();
           if (refreshed.items?.length) {

@@ -14,7 +14,7 @@ import { userService, SavedAddress } from '@/services/userService';
 import { productService } from '@/services/productService';
 import { indianStates } from '@/lib/indianStates';
 import { toast } from 'sonner';
-import { AxiosError } from 'axios';
+import axios, { AxiosError } from 'axios';
 
 type PaymentMethod = 'razorpay';
 
@@ -151,6 +151,10 @@ export default function CheckoutPage() {
       return true;
     } catch (error) {
       console.error('Stock validation error:', error);
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        toast.warning('Stock pre-check is unavailable. Continuing with final order validation.');
+        return true;
+      }
       toast.error('Unable to validate stock. Please try again.');
       return false;
     } finally {

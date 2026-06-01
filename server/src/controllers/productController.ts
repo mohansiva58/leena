@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import Product, { IProduct } from '../models/Product';
+import Sale from '../models/Sale';
 import { writeAudit } from '../utils/auditLog';
 import { deleteFromCloudinary } from '../config/cloudinary';
 import { cacheGet, cacheSet, cacheDel, cacheInvalidatePrefix, CACHE_TTL } from '../utils/cache';
@@ -14,6 +15,24 @@ import {
     handleValidationError,
 } from '../utils/itemHelpers';
 import mongoose from 'mongoose';
+
+const findStockCatalogItem = async (productId: string) => {
+    const product = await Product.findOne({ productId }).lean();
+    if (product) return { item: product, id: product.productId };
+
+    const sale = await Sale.findOne({ saleId: productId }).lean();
+    if (sale) return { item: sale, id: sale.saleId };
+
+    if (mongoose.Types.ObjectId.isValid(productId)) {
+        const productById = await Product.findById(productId).lean();
+        if (productById) return { item: productById, id: productById.productId };
+
+        const saleById = await Sale.findById(productId).lean();
+        if (saleById) return { item: saleById, id: saleById.saleId };
+    }
+
+    return null;
+};
 
 /** Invalidate all product caches */
 const invalidateProductCache = async (productId?: string) => {
@@ -413,42 +432,54 @@ export const checkStockAvailability = async (req: Request, res: Response): Promi
                 continue;
             }
 
-            // Check product stock
-            const product = await Product.findOne({ productId }).lean();
-            if (product) {
-                const sizeKey = 'sizeCounts' as keyof typeof product;
-                const sizeCount = product[sizeKey];
-                const sizeCounts = sizeCount instanceof Map
-                    ? Object.fromEntries(sizeCount)
-                    : sizeCount as Record<string, number> | undefined;
-                const availableForSize =
-                    sizeCounts && typeof sizeCounts === 'object'
-                        ? Number(sizeCounts[size] || 0)
-                        : 0;
-
-                const isAvailable = availableForSize >= quantity;
-                if (!isAvailable) allAvailable = false;
-
+            const resolved = await findStockCatalogItem(productId);
+            if (!resolved) {
+                allAvailable = false;
                 stockResults.push({
                     productId,
                     size,
                     quantity,
-                    maxAvailable: Math.max(0, availableForSize),
-                    available: isAvailable,
-                    name: product.name,
-                    image: product.image,
+                    maxAvailable: 0,
+                    available: false,
                 });
                 continue;
             }
 
-            // If not a product, result will show unavailable
-            allAvailable = false;
+            const { item: catalogItem, id: canonicalId } = resolved;
+            if (!catalogItem.sizes?.includes(size)) {
+                allAvailable = false;
+                stockResults.push({
+                    productId: canonicalId,
+                    size,
+                    quantity,
+                    maxAvailable: 0,
+                    available: false,
+                    name: catalogItem.name,
+                    image: catalogItem.image,
+                });
+                continue;
+            }
+
+            const rawSizeCounts = 'sizeCounts' in catalogItem ? catalogItem.sizeCounts : undefined;
+            const sizeCounts = rawSizeCounts instanceof Map
+                ? Object.fromEntries(rawSizeCounts)
+                : rawSizeCounts as Record<string, number> | undefined;
+            const availableForSize =
+                sizeCounts && typeof sizeCounts === 'object'
+                    ? Number(sizeCounts[size] || 0)
+                    : Number(catalogItem.stock || 0);
+
+            const isAvailable = availableForSize >= quantity;
+            if (!isAvailable) allAvailable = false;
+
             stockResults.push({
-                productId,
+                productId: canonicalId,
                 size,
                 quantity,
-                maxAvailable: 0,
-                available: false,
+                maxAvailable: Math.max(0, availableForSize),
+                available: isAvailable,
+                name: catalogItem.name,
+                image: catalogItem.image,
             });
         }
 

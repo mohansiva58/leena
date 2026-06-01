@@ -12,11 +12,20 @@ import { orderService } from '@/services/orderService';
 import { couponService } from '@/services/couponService';
 import { userService, SavedAddress } from '@/services/userService';
 import { productService } from '@/services/productService';
+import { saleService } from '@/services/saleService';
 import { indianStates } from '@/lib/indianStates';
 import { toast } from 'sonner';
 import axios, { AxiosError } from 'axios';
 
 type PaymentMethod = 'razorpay';
+
+type CatalogStockItem = {
+  productId?: string;
+  saleId?: string;
+  sizes?: string[];
+  stock?: number;
+  sizeCounts?: Record<string, number>;
+};
 
 const normalizeIndianPhone = (phone: string) => {
   let digits = phone.replace(/\D/g, '');
@@ -117,6 +126,65 @@ export default function CheckoutPage() {
   };
 
   const validateStockBeforePayment = async (): Promise<boolean> => {
+    const validateCartItemsFromCatalog = async () => {
+      const errors: Record<string, string> = {};
+
+      await Promise.all(items.map(async (item) => {
+        const productId = getProductId(item.product);
+        const key = `${productId}-${item.size}`;
+
+        if (!productId) {
+          errors[key] = 'This item is missing a product ID';
+          return;
+        }
+
+        let catalogItem: CatalogStockItem | null = null;
+        try {
+          catalogItem = await productService.getProductById(productId);
+        } catch (productError) {
+          if (!axios.isAxiosError(productError) || productError.response?.status !== 404) {
+            throw productError;
+          }
+
+          try {
+            catalogItem = await saleService.getSaleById(productId);
+          } catch (saleError) {
+            if (axios.isAxiosError(saleError) && saleError.response?.status === 404) {
+              errors[key] = 'This item is no longer available';
+              removeItem(productId, item.size, getCartItemImage(item), item.color);
+              return;
+            }
+            throw saleError;
+          }
+        }
+
+        if (!catalogItem) {
+          errors[key] = 'This item is no longer available';
+          removeItem(productId, item.size, getCartItemImage(item), item.color);
+          return;
+        }
+
+        if (Array.isArray(catalogItem.sizes) && !catalogItem.sizes.includes(item.size)) {
+          errors[key] = `${item.size} is no longer available`;
+          return;
+        }
+
+        const maxAvailable = catalogItem.sizeCounts?.[item.size] ?? catalogItem.stock ?? 0;
+        if (maxAvailable < item.quantity) {
+          errors[key] = `Only ${Math.max(0, maxAvailable)} available (tried to order ${item.quantity})`;
+        }
+      }));
+
+      if (Object.keys(errors).length > 0) {
+        setStockErrors(errors);
+        toast.error('Some cart items are unavailable. Please review your cart.');
+        return false;
+      }
+
+      setStockErrors({});
+      return true;
+    };
+
     try {
       setValidatingStock(true);
       setStockErrors({});
@@ -152,8 +220,7 @@ export default function CheckoutPage() {
     } catch (error) {
       console.error('Stock validation error:', error);
       if (axios.isAxiosError(error) && error.response?.status === 404) {
-        toast.warning('Stock pre-check is unavailable. Continuing with final order validation.');
-        return true;
+        return validateCartItemsFromCatalog();
       }
       toast.error('Unable to validate stock. Please try again.');
       return false;

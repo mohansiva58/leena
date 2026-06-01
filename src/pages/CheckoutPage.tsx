@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ChevronLeft, CreditCard, Check, AlertCircle, Plus, Pencil, Trash2, Minus, Loader } from 'lucide-react';
+import { ChevronLeft, CreditCard, Check, AlertCircle, Plus, Pencil, Trash2, Minus } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { AuthModal } from '@/components/AuthModal';
@@ -14,6 +14,7 @@ import { userService, SavedAddress } from '@/services/userService';
 import { productService } from '@/services/productService';
 import { indianStates } from '@/lib/indianStates';
 import { toast } from 'sonner';
+import { AxiosError } from 'axios';
 
 type PaymentMethod = 'razorpay';
 
@@ -34,7 +35,6 @@ export default function CheckoutPage() {
   const [step, setStep] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('razorpay');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [policyAccepted, setPolicyAccepted] = useState(false);
 
@@ -80,16 +80,6 @@ export default function CheckoutPage() {
     }
   }, [items, step, navigate]);
 
-  // Redirect to orders page after payment success
-  useEffect(() => {
-    if (paymentSuccess) {
-      const timer = setTimeout(() => {
-        navigate('/orders');
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [paymentSuccess, navigate]);
-
   const handleApplyCoupon = async (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
     if (!couponCode.trim()) return;
@@ -102,9 +92,10 @@ export default function CheckoutPage() {
         ? Math.round((subtotal * result.discountValue) / 100) 
         : result.discountValue;
       toast.success(`Coupon "${result.code}" applied! You saved ₹${saved}`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Apply coupon error:', error);
-      const errorMsg = error.response?.data?.error || 'Invalid coupon code';
+      const axiosError = error as AxiosError<{ error?: string }>;
+      const errorMsg = axiosError.response?.data?.error || 'Invalid coupon code';
       
       // Don't show technical routing errors to the user
       if (!errorMsg.includes('not found')) {
@@ -369,10 +360,10 @@ export default function CheckoutPage() {
         amount: total,
         orderData,
         onSuccess: (orderId) => {
-          clearCart();
-          setPaymentSuccess(true);
           setStep(3);
+          clearCart();
           toast.success(`Order ${orderId} placed successfully! 🎉`);
+          navigate('/orders', { replace: true });
         },
         onFailure: (error) => {
           console.error('Payment failed:', error);
@@ -386,43 +377,6 @@ export default function CheckoutPage() {
       setIsProcessing(false);
     }
   };
-
-  // Show processing screen immediately after payment success
-  if (paymentSuccess) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <Header />
-        <main className="flex-1 flex items-center justify-center pt-24 pb-16">
-          <div className="container mx-auto px-4 max-w-2xl text-center">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="space-y-6"
-            >
-              <div className="flex justify-center mb-6">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-                >
-                  <Loader className="text-primary" size={64} />
-                </motion.div>
-              </div>
-              <div>
-                <h2 className="font-serif text-3xl font-bold mb-2">Processing Your Order</h2>
-                <p className="text-muted-foreground text-lg">
-                  Payment received! We're confirming your order...
-                </p>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                <p>You will be redirected to your orders in a moment.</p>
-              </div>
-            </motion.div>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
 
   if (items.length === 0 && step !== 3) {
     return (

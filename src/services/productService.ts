@@ -77,7 +77,24 @@ export const productService = {
 
         const response = await api.get(`/products?${params.toString()}`);
         console.log('Fetched paged products:', response.data);
-        return response.data;
+        if (Array.isArray(response.data)) {
+            const items = response.data;
+            return {
+                items,
+                total: items.length,
+                page: filters.page,
+                limit: filters.limit,
+                hasMore: items.length >= filters.limit,
+            };
+        }
+
+        return {
+            items: Array.isArray(response.data?.items) ? response.data.items : [],
+            total: Number(response.data?.total || 0),
+            page: Number(response.data?.page || filters.page),
+            limit: Number(response.data?.limit || filters.limit),
+            hasMore: Boolean(response.data?.hasMore),
+        };
     },
 
     getProductById: async (id: string): Promise<Product> => {

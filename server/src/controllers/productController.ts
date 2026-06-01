@@ -193,8 +193,8 @@ export const getAllProducts = async (req: Request, res: Response): Promise<void>
         const isUnfiltered = Object.keys(query).length === 0;
         let cacheKey = `products:${JSON.stringify(query)}:${sort || 'default'}`;
         if (wantsPagination) cacheKey = `${cacheKey}:page=${pageNumber}:limit=${pageSize}`;
-        if (isUnfiltered && !sort) cacheKey = 'products:recent';
-        if (isUnfiltered && sort === 'popular') cacheKey = 'products:popular';
+        if (!wantsPagination && isUnfiltered && !sort) cacheKey = 'products:recent';
+        if (!wantsPagination && isUnfiltered && sort === 'popular') cacheKey = 'products:popular';
 
         const cached = await cacheGet(cacheKey);
         if (cached) { res.json(cached); return; }
@@ -414,13 +414,16 @@ export const checkStockAvailability = async (req: Request, res: Response): Promi
             }
 
             // Check product stock
-            let product = await Product.findOne({ productId }).lean();
+            const product = await Product.findOne({ productId }).lean();
             if (product) {
                 const sizeKey = 'sizeCounts' as keyof typeof product;
                 const sizeCount = product[sizeKey];
-                const availableForSize = 
-                    (Array.isArray(sizeCount) || typeof sizeCount === 'object')
-                        ? (sizeCount as any)?.[size] || 0
+                const sizeCounts = sizeCount instanceof Map
+                    ? Object.fromEntries(sizeCount)
+                    : sizeCount as Record<string, number> | undefined;
+                const availableForSize =
+                    sizeCounts && typeof sizeCounts === 'object'
+                        ? Number(sizeCounts[size] || 0)
                         : 0;
 
                 const isAvailable = availableForSize >= quantity;

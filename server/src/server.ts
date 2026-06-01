@@ -32,6 +32,7 @@ import couponRoutes from './routes/coupons';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { razorpayWebhook } from './controllers/paymentWebhookController';
 import { validateCoupon } from './controllers/couponController';
+import { checkStockAvailability } from './controllers/productController';
 
 const PORT = Number(process.env.PORT || 5000);
 
@@ -134,6 +135,7 @@ function createApp(): Application {
     // ============ API ROUTES (with /api prefix) ============
     // Specific direct registration for problematic route
     app.post('/api/coupons/validate', validateCoupon);
+    app.post('/api/products/check-stock', checkStockAvailability);
 
     // Standard route registration
     app.use('/api/coupons', couponRoutes);

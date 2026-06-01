@@ -16,11 +16,9 @@ import { requireAdmin } from '../middleware/requireAdmin';
 const router = express.Router();
 
 router.get('/featured', getFeaturedProducts);
+router.post('/check-stock', checkStockAvailability);
 router.get('/', getAllProducts);
 router.get('/:id', getProductById);
-
-// Stock availability check (no auth required - used during checkout)
-router.post('/check-stock', checkStockAvailability);
 
 // Admin-only mutations
 const adminUpload = upload.fields([

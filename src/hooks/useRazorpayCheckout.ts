@@ -154,6 +154,22 @@ export const useRazorpayCheckout = () => {
                         onSuccess(orderRes.order.orderId);
                     } catch (error) {
                         console.error('Payment verification failed:', error);
+                        try {
+                            const recentOrders = await orderService.getOrders({ limit: 1 });
+                            const latestOrder = Array.isArray(recentOrders?.orders)
+                                ? recentOrders.orders[0]
+                                : Array.isArray(recentOrders)
+                                    ? recentOrders[0]
+                                    : null;
+
+                            if (latestOrder?.orderId) {
+                                toast.success(`Payment successful! Order ${latestOrder.orderId} placed.`);
+                                onSuccess(latestOrder.orderId);
+                                return;
+                            }
+                        } catch (reconcileError) {
+                            console.error('Order reconciliation failed:', reconcileError);
+                        }
                         toast.error('Payment verification failed');
                         onFailure(error);
                     } finally {

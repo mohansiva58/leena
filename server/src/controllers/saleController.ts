@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth';
 import { writeAudit } from '../utils/auditLog';
 import Sale from '../models/Sale';
 import SaleMode from '../models/SaleMode';
+import Cart from '../models/Cart';
 import { deleteFromCloudinary } from '../config/cloudinary';
 import { cacheGet, cacheSet, cacheDel, cacheInvalidatePrefix, CACHE_TTL } from '../utils/cache';
 import {
@@ -180,6 +181,11 @@ export const deleteSale = async (req: AuthRequest, res: Response): Promise<void>
         if (!deleted) deleted = await Sale.findByIdAndDelete(id);
         if (!deleted) { res.status(404).json({ error: 'Sale item not found' }); return; }
 
+        await Cart.updateMany(
+            { 'items.productId': deleted.saleId },
+            { $pull: { items: { productId: deleted.saleId } } }
+        );
+        await cacheInvalidatePrefix('cart:');
         await deleteFromCloudinary([deleted.cloudinaryId, ...(deleted.cloudinaryIds || [])].filter(Boolean) as string[]);
         await invalidateSaleCache(id);
         await warmSaleReadCaches();

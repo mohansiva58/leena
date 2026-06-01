@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import Product, { IProduct } from '../models/Product';
 import Sale from '../models/Sale';
+import Cart from '../models/Cart';
 import { writeAudit } from '../utils/auditLog';
 import { deleteFromCloudinary } from '../config/cloudinary';
 import { cacheGet, cacheSet, cacheDel, cacheInvalidatePrefix, CACHE_TTL } from '../utils/cache';
@@ -379,6 +380,11 @@ export const deleteProduct = async (req: AuthRequest, res: Response): Promise<vo
         if (!deleted) deleted = await Product.findByIdAndDelete(id);
         if (!deleted) { res.status(404).json({ error: 'Product not found' }); return; }
 
+        await Cart.updateMany(
+            { 'items.productId': deleted.productId },
+            { $pull: { items: { productId: deleted.productId } } }
+        );
+        await cacheInvalidatePrefix('cart:');
         await deleteFromCloudinary([deleted.cloudinaryId, ...(deleted.cloudinaryIds || [])].filter(Boolean) as string[]);
         await invalidateProductCache(id);
         await warmProductReadCaches();

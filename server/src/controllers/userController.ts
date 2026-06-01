@@ -175,13 +175,15 @@ export const notifyLogin = async (req: AuthRequest, res: Response): Promise<void
         const email = req.user?.email || '';
         const displayName = req.user?.displayName || email.split('@')[0] || 'User';
 
-        if (email) {
-            await sendLoginNotificationEmail(email, displayName);
-        }
-
         res.json({ success: true, message: 'Login notification sent' });
+
+        if (email) {
+            sendLoginNotificationEmail(email, displayName).catch((emailError) => {
+                console.error('Login notification email failed:', emailError);
+            });
+        }
     } catch (error) {
         console.error('Notify login error:', error);
-        res.status(500).json({ error: 'Failed to send login notification' });
+        res.json({ success: true, message: 'Login notification skipped' });
     }
 };

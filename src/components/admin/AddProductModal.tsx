@@ -45,9 +45,10 @@ interface ApiErrorResponse {
     message?: string;
 }
 
+const DEFAULT_SIZES = ['XS', 'S', 'M', 'L', 'XL'];
+
 export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProductModalProps) {
     const [loading, setLoading] = useState(false);
-    const defaultSizes = ['XS', 'S', 'M', 'L', 'XL'];
     const [formData, setFormData] = useState({
         name: '',
         price: '',
@@ -58,10 +59,10 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
         setType: '1 piece',
         isNew: false,
         isBestseller: false,
-        sizes: defaultSizes.join(', '),
+        sizes: DEFAULT_SIZES.join(', '),
     });
     const [sizeRows, setSizeRows] = useState<Array<{ size: string; quantity: string }>>(
-        defaultSizes.map((size) => ({ size, quantity: '0' }))
+        DEFAULT_SIZES.map((size) => ({ size, quantity: '0' }))
     );
 
     const [mainImage, setMainImage] = useState<File | null>(null);
@@ -83,12 +84,12 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                     description: product.description,
                     stock: product.stock?.toString() || String(Object.values(sizeCounts).reduce((sum, value) => sum + Number(value || 0), 0)),
                     setType: product.setType || '1 piece',
-                    isNew: product.newArrival || product.isNew || false,
+                    isNew: product.isNew || false,
                     isBestseller: product.isBestseller || false,
                     sizes: sizes.join(', '),
                 });
                 setSizeRows(
-                    (sizes.length > 0 ? sizes : defaultSizes).map((size) => ({
+                    (sizes.length > 0 ? sizes : DEFAULT_SIZES).map((size) => ({
                         size,
                         quantity: String(sizeCounts[size] ?? 0),
                     }))
@@ -107,9 +108,9 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                     setType: '1 piece',
                     isNew: false,
                     isBestseller: false,
-                    sizes: defaultSizes.join(', '),
+                    sizes: DEFAULT_SIZES.join(', '),
                 });
-                setSizeRows(defaultSizes.map((size) => ({ size, quantity: '0' })));
+                setSizeRows(DEFAULT_SIZES.map((size) => ({ size, quantity: '0' })));
                 setMainImage(null);
                 setMainImagePreview(null);
                 setAdditionalImages([]);
@@ -263,7 +264,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
             });
 
             if (product) {
-                const productId = product.productId || product._id || product.id;
+                const productId = product.productId || product._id;
                 await api.put(`/products/${productId}`, data, {
                     headers: { 'Content-Type': undefined },
                 });
@@ -289,9 +290,9 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                 setType: '1 piece',
                 isNew: false,
                 isBestseller: false,
-                sizes: defaultSizes.join(', '),
+                sizes: DEFAULT_SIZES.join(', '),
             });
-            setSizeRows(defaultSizes.map((size) => ({ size, quantity: '0' })));
+            setSizeRows(DEFAULT_SIZES.map((size) => ({ size, quantity: '0' })));
             setMainImage(null);
             setMainImagePreview(null);
             setAdditionalImages([]);

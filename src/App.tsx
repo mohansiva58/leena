@@ -22,6 +22,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 import { WhatsAppButton } from "./components/WhatsAppButton";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { CartServerSync } from "./components/CartServerSync";
+import { PaymentOrderRecovery } from "./components/PaymentOrderRecovery";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <PaymentOrderRecovery />
           <Suspense 
             fallback={
               <div className="flex h-screen w-screen items-center justify-center bg-white">

@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { paymentService } from '@/services/paymentService';
 import { orderService, CreateOrderData } from '@/services/orderService';
+import { clearPendingPaidOrder, savePendingPaidOrder } from '@/lib/pendingPaidOrder';
 import { toast } from 'sonner';
 
 declare global {
@@ -150,6 +151,7 @@ export const useRazorpayCheckout = () => {
                             razorpayPaymentId: response.razorpay_payment_id,
                             razorpaySignature: response.razorpay_signature,
                         };
+                        savePendingPaidOrder(paidOrderData);
 
                         let orderRes: Awaited<ReturnType<typeof orderService.createOrder>> | null = null;
                         let lastCreateError: unknown = null;
@@ -169,6 +171,7 @@ export const useRazorpayCheckout = () => {
                             throw lastCreateError || new Error('Failed to create order after payment');
                         }
 
+                        clearPendingPaidOrder();
                         toast.success(`Payment successful! Order ${orderRes.order.orderId} placed.`);
                         onSuccess(orderRes.order.orderId);
                     } catch (error) {

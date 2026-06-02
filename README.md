@@ -228,6 +228,8 @@ vercel --prod
 ```
 
 Update `VITE_API_URL` in frontend to point to production backend.
+If your socket backend is on a different host, also set `VITE_SOCKET_URL`.
+Otherwise the app derives the Socket.IO URL from `VITE_API_URL`.
 
 ## 📊 Database Models
 

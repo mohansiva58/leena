@@ -3,6 +3,12 @@ import { Server as HttpServer } from 'http';
 
 let io: Server | null = null;
 
+const parseOrigins = (...values: Array<string | undefined>): string[] =>
+    values
+        .flatMap((value) => value?.split(',') || [])
+        .map((origin) => origin.trim())
+        .filter(Boolean);
+
 export const initIO = (server: HttpServer) => {
     io = new Server(server, {
         cors: {
@@ -13,6 +19,7 @@ export const initIO = (server: HttpServer) => {
                 "http://localhost:8080",
                 "https://leena-mu.vercel.app",
                 "https://www.leenabyalekhya.in",
+                ...parseOrigins(process.env.FRONTEND_URL, process.env.CORS_ORIGIN),
             ],
             methods: ["GET", "POST"],
             credentials: true

@@ -6,6 +6,7 @@ import {
     updateCartItem,
     removeFromCart,
     clearCart,
+    getCartAvailability,
 } from '../controllers/cartController';
 
 const router = express.Router();
@@ -14,6 +15,7 @@ const router = express.Router();
 router.use(authenticateUser);
 
 router.get('/', getCart);
+router.get('/availability', getCartAvailability);
 router.post('/add', addToCart);
 router.put('/update', updateCartItem);
 router.delete('/remove/:productId/:size', removeFromCart);

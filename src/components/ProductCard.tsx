@@ -28,6 +28,11 @@ export function ProductCard({
   const isWishlisted = isInWishlist(productId);
 
   const isNew = product.newArrival || product.isNew;
+  const availableStock = typeof product.stock === 'number'
+    ? product.stock
+    : product.sizeCounts
+      ? Object.values(product.sizeCounts).reduce((sum, value) => sum + Number(value || 0), 0)
+      : undefined;
 
   const discountPercentage =
     product.originalPrice &&
@@ -95,6 +100,36 @@ export function ProductCard({
 
             {/* BADGES */}
             <div className="absolute left-3 top-3 flex flex-col gap-2">
+              {typeof availableStock === 'number' && availableStock <= 0 && (
+                <span
+                  className="
+                    rounded-full
+                    bg-neutral-900
+                    px-3
+                    py-1
+                    text-[10px]
+                    font-semibold
+                    text-white
+                  "
+                >
+                  OUT OF STOCK
+                </span>
+              )}
+              {typeof availableStock === 'number' && availableStock > 0 && availableStock <= 2 && (
+                <span
+                  className="
+                    rounded-full
+                    bg-amber-600
+                    px-3
+                    py-1
+                    text-[10px]
+                    font-semibold
+                    text-white
+                  "
+                >
+                  ONLY {availableStock} LEFT
+                </span>
+              )}
               {isNew && (
                 <span
                   className="

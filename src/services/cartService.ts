@@ -28,6 +28,22 @@ export const cartService = {
         return response.data;
     },
 
+    getAvailability: async (): Promise<{
+        available: boolean;
+        items: Array<{
+            productId: string;
+            size: string;
+            color?: string;
+            quantity: number;
+            available: boolean;
+            maxAvailable: number;
+            message?: string;
+        }>;
+    }> => {
+        const response = await api.get('/cart/availability');
+        return response.data;
+    },
+
     addToCart: async (
         productId: string,
         size: string,

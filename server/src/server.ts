@@ -26,6 +26,8 @@ import productRoutes from './routes/products';
 import cartRoutes from './routes/cart';
 import orderRoutes from './routes/orders';
 import paymentRoutes from './routes/payment';
+import inventoryRoutes from './routes/inventory';
+import checkoutRoutes from './routes/checkout';
 import userRoutes from './routes/users';
 import adminRoutes from './routes/admin';
 import salesRoutes from './routes/sales';
@@ -110,6 +112,7 @@ function createApp(): Application {
 
     // Razorpay webhook — raw body (must be before express.json)
     app.post('/api/payment/webhook', webhookLimiter, express.raw({ type: 'application/json' }), razorpayWebhook);
+    app.post('/api/webhooks/razorpay', webhookLimiter, express.raw({ type: 'application/json' }), razorpayWebhook);
 
     // Body parsing middleware
     app.use(express.json({ limit: '10mb' }));
@@ -147,6 +150,8 @@ function createApp(): Application {
     app.use('/api/cart', cartRoutes);
     app.use('/api/orders', orderRoutes);
     app.use('/api/payment', paymentRoutes);
+    app.use('/api/inventory', inventoryRoutes);
+    app.use('/api/checkout', checkoutRoutes);
     app.use('/api/users', userRoutes);
     app.use('/api/admin', adminRoutes);
     app.use('/api/sales', salesRoutes);
@@ -161,6 +166,8 @@ function createApp(): Application {
     app.use('/cart', cartRoutes);
     app.use('/orders', orderRoutes);
     app.use('/payment', paymentRoutes);
+    app.use('/inventory', inventoryRoutes);
+    app.use('/checkout', checkoutRoutes);
     app.use('/users', userRoutes);
     app.use('/admin', adminRoutes);
     app.use('/sales', salesRoutes);

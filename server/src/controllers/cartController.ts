@@ -298,3 +298,65 @@ export const clearCart = async (req: AuthRequest, res: Response): Promise<void> 
         res.status(500).json({ error: 'Failed to clear cart' });
     }
 };
+
+export const getCartAvailability = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.uid;
+        if (!userId) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        const cart = await Cart.findOne({ userId });
+        const items = cart?.items || [];
+        const availability = [];
+        let allAvailable = true;
+
+        for (const item of items) {
+            const resolved = await findCartCatalogItem(item.productId);
+            if (!resolved) {
+                allAvailable = false;
+                availability.push({
+                    productId: item.productId,
+                    size: item.size,
+                    quantity: item.quantity,
+                    available: false,
+                    maxAvailable: 0,
+                    message: 'Item is no longer available',
+                });
+                continue;
+            }
+
+            const catalogItem = resolved.item;
+            const rawSizeCounts = 'sizeCounts' in catalogItem ? catalogItem.sizeCounts : undefined;
+            const rawReservedCounts = 'sizeReservedCounts' in catalogItem ? catalogItem.sizeReservedCounts : undefined;
+            const sizeCounts = rawSizeCounts instanceof Map ? Object.fromEntries(rawSizeCounts) : rawSizeCounts as Record<string, number> | undefined;
+            const reservedCounts = rawReservedCounts instanceof Map ? Object.fromEntries(rawReservedCounts) : rawReservedCounts as Record<string, number> | undefined;
+            const totalForSize = sizeCounts && typeof sizeCounts === 'object'
+                ? Number(sizeCounts[item.size] || 0)
+                : Number(catalogItem.stock || 0);
+            const reservedForSize = reservedCounts && typeof reservedCounts === 'object'
+                ? Number(reservedCounts[item.size] || 0)
+                : 0;
+            const maxAvailable = Math.max(0, totalForSize - reservedForSize);
+            const isAvailable = maxAvailable >= item.quantity;
+
+            if (!isAvailable) allAvailable = false;
+
+            availability.push({
+                productId: item.productId,
+                size: item.size,
+                color: item.color,
+                quantity: item.quantity,
+                available: isAvailable,
+                maxAvailable,
+                message: isAvailable ? undefined : `Only ${maxAvailable} available for size ${item.size}`,
+            });
+        }
+
+        res.json({ available: allAvailable, items: availability });
+    } catch (error) {
+        console.error('Cart availability error:', error);
+        res.status(500).json({ error: 'Failed to check cart availability' });
+    }
+};

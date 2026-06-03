@@ -43,6 +43,14 @@ export interface StockCheckResponse {
     }>;
 }
 
+export interface InventoryReservationResponse {
+    reservationGroupId?: string;
+    reservationId?: string;
+    reservationIds: string[];
+    expiresAt: string;
+    ttlSeconds: number;
+}
+
 export const productService = {
     getAllProducts: async (filters?: ProductFilters): Promise<Product[]> => {
         const params = new URLSearchParams();
@@ -109,13 +117,33 @@ export const productService = {
         quantity: number;
         sessionId: string;
         userId?: string;
+        color?: string;
+        idempotencyKey?: string;
     }): Promise<{ reservationId: string }> => {
-        const response = await api.post('/products/reserve', data);
+        const response = await api.post('/inventory/reserve', data);
+        return response.data;
+    },
+
+    reserveInventory: async (data: {
+        items: StockCheckItem[];
+        sessionId: string;
+        idempotencyKey?: string;
+    }): Promise<InventoryReservationResponse> => {
+        const response = await api.post('/inventory/reserve', data);
         return response.data;
     },
 
     releaseStock: async (reservationId: string): Promise<void> => {
-        await api.post('/products/release', { reservationId });
+        await api.post('/inventory/release', { reservationId });
+    },
+
+    releaseInventory: async (reservationIds: string[], reason?: string): Promise<void> => {
+        await api.post('/inventory/release', { reservationIds, reason });
+    },
+
+    getProductStock: async (productId: string) => {
+        const response = await api.get(`/products/${productId}/stock`);
+        return response.data;
     },
 
     getFeaturedProducts: async (): Promise<Product[]> => {

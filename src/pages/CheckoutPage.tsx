@@ -14,6 +14,7 @@ import { orderService, CreateOrderData } from '@/services/orderService';
 import { couponService } from '@/services/couponService';
 import { userService, SavedAddress } from '@/services/userService';
 import { productService } from '@/services/productService';
+import { cartService } from '@/services/cartService';
 import { useSocket } from '@/hooks/useSocket';
 import { saleService } from '@/services/saleService';
 import { indianStates } from '@/lib/indianStates';
@@ -51,6 +52,8 @@ export default function CheckoutPage() {
   const [step, setStep] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('razorpay');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [reservationExpiresAt, setReservationExpiresAt] = useState<Date | null>(null);
+  const [reservationSecondsLeft, setReservationSecondsLeft] = useState(0);
 
   const paymentSucceeded = useRef(false);
 
@@ -65,27 +68,40 @@ export default function CheckoutPage() {
       const currentReservations = store.reservationIds || [];
       if (items.length > 0 && currentReservations.length === 0) {
         const sessionId = store.sessionId;
-        const reservationIds: string[] = [];
         const loadingToastId = 'checkout-reservation';
         toast.loading('Securing your items...', { id: loadingToastId });
 
         try {
-          for (const item of items) {
-            const res = await productService.reserveStock({
+          const availability = await cartService.getAvailability().catch(() => null);
+          if (availability && !availability.available) {
+            const errors: Record<string, string> = {};
+            availability.items.forEach((item) => {
+              if (!item.available) {
+                errors[`${item.productId}-${item.size}`] = item.message || `Only ${item.maxAvailable} available`;
+              }
+            });
+            setStockErrors(errors);
+            throw new Error('Some items are no longer available in the requested quantity.');
+          }
+
+          const reservation = await productService.reserveInventory({
+            sessionId,
+            idempotencyKey: `${sessionId}:${items.map((item) => `${getProductId(item.product)}:${item.size}:${item.quantity}:${item.color || ''}`).join('|')}`,
+            items: items.map((item) => ({
               productId: getProductId(item.product) || '',
               size: item.size,
               quantity: item.quantity,
-              sessionId,
-              userId: user?.uid
-            });
-            reservationIds.push(res.reservationId);
-          }
+              color: item.color,
+            })),
+          });
+          const reservationIds = reservation.reservationIds;
           reservationsMade = reservationIds;
           store.setReservationIds(reservationIds);
-          toast.success('Items secured for checkout!', { id: loadingToastId });
+          setReservationExpiresAt(new Date(reservation.expiresAt));
+          toast.success('Items reserved for checkout.', { id: loadingToastId });
         } catch (err: unknown) {
-          const error = err as { response?: { data?: { error?: string } } };
-          toast.error(error.response?.data?.error || 'Some items are out of stock. Returning to cart.', { id: loadingToastId });
+          const error = err as { response?: { data?: { error?: string } }; message?: string };
+          toast.error(error.response?.data?.error || error.message || 'Some items are out of stock. Returning to cart.', { id: loadingToastId });
           setTimeout(() => navigate('/cart'), 1500);
         }
       } else {
@@ -142,11 +158,7 @@ export default function CheckoutPage() {
 
       if (ids.length > 0) {
         // Fire-and-forget: release all reservations silently
-        ids.forEach((reservationId) => {
-          productService.releaseStock(reservationId).catch(() => {
-            // Silently ignore — server will clean up via cron after 15 min
-          });
-        });
+        productService.releaseInventory(ids, 'checkout_left').catch(() => undefined);
         store.clearReservations();
       }
     };
@@ -155,6 +167,24 @@ export default function CheckoutPage() {
 
   // ^ Intentionally only depends on auth, not items — we want reserve to run
   //   once when entering checkout, and cleanup to run once when leaving.
+
+  useEffect(() => {
+    if (!reservationExpiresAt) return;
+
+    const tick = () => {
+      const seconds = Math.max(0, Math.floor((reservationExpiresAt.getTime() - Date.now()) / 1000));
+      setReservationSecondsLeft(seconds);
+      if (seconds === 0) {
+        useCartStore.getState().clearReservations();
+        toast.error('Your checkout reservation expired. Please review your cart again.');
+        navigate('/cart');
+      }
+    };
+
+    tick();
+    const interval = window.setInterval(tick, 1000);
+    return () => window.clearInterval(interval);
+  }, [reservationExpiresAt, navigate]);
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [policyAccepted, setPolicyAccepted] = useState(false);
@@ -241,6 +271,10 @@ export default function CheckoutPage() {
     try {
       setValidatingStock(true);
       setStockErrors({});
+
+      if ((useCartStore.getState().reservationIds || []).length > 0) {
+        return true;
+      }
 
       const itemsToCheck = items.map(item => ({
         productId: getProductId(item.product) || '',
@@ -485,6 +519,9 @@ export default function CheckoutPage() {
           total,
           subtotal,
           discountAmount,
+          onPaymentAuthorized: () => {
+            paymentSucceeded.current = true;
+          },
           onSuccess: (orderId: string, orderDetails) => {
             // Mark payment as succeeded BEFORE navigating away so the unmount
             // cleanup doesn't try to release reservations (server completed them)
@@ -865,7 +902,15 @@ export default function CheckoutPage() {
               className="space-y-6"
             >
               <div className="bg-card rounded-2xl shadow-lg p-8">
-                <h2 className="font-serif text-2xl font-bold mb-6">Payment Method</h2>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6">
+                  <h2 className="font-serif text-2xl font-bold">Payment Method</h2>
+                  {reservationSecondsLeft > 0 && (
+                    <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary">
+                      <Check size={14} />
+                      Reserved for {Math.floor(reservationSecondsLeft / 60)}:{String(reservationSecondsLeft % 60).padStart(2, '0')}
+                    </div>
+                  )}
+                </div>
 
                 <div className="space-y-4 mb-8">
                   <label

@@ -65,6 +65,7 @@ interface RazorpayCheckoutProps {
     orderData: CreateOrderData;
     onSuccess: (orderId: string, orderDetails: CreateOrderData & { total: number; subtotal: number; discount: number }) => void;
     onFailure: (error: unknown) => void;
+    onPaymentAuthorized?: () => void;
     total: number;
     subtotal: number;
     discountAmount: number;
@@ -77,7 +78,7 @@ export const useRazorpayCheckout = () => {
     const inFlight = useRef(false);
     const navigate = useNavigate();
 
-    const initiatePayment = async ({ amount, orderData, onSuccess, onFailure, total, subtotal, discountAmount }: RazorpayCheckoutProps) => {
+    const initiatePayment = async ({ amount, orderData, onSuccess, onFailure, onPaymentAuthorized, total, subtotal, discountAmount }: RazorpayCheckoutProps) => {
         try {
             if (!user) {
                 throw new Error('Please login to continue');
@@ -147,6 +148,7 @@ export const useRazorpayCheckout = () => {
                         // Payment succeeded in Razorpay — navigate to /processing
                         // immediately so user NEVER sees checkout page again
                         // ──────────────────────────────────────────────────────────
+                        onPaymentAuthorized?.();
                         navigate('/processing', { replace: true });
 
                         // Verify payment signature with backend
@@ -154,6 +156,7 @@ export const useRazorpayCheckout = () => {
                             razorpayOrderId: response.razorpay_order_id,
                             razorpayPaymentId: response.razorpay_payment_id,
                             razorpaySignature: response.razorpay_signature,
+                            reservationIds: orderData.reservationIds,
                         });
 
                         const paidOrderData = {

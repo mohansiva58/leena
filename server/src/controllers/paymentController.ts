@@ -5,6 +5,7 @@ import { generateOrderId } from '../utils/helpers';
 import Coupon from '../models/Coupon';
 import PaymentIntent from '../models/PaymentIntent';
 import { resolveOrderLines, RawOrderItemInput } from '../services/orderLineItems';
+import { StockReservationService } from '../services/StockReservationService';
 
 type RazorpayApiError = {
     statusCode?: number;
@@ -134,7 +135,7 @@ export const createRazorpayOrder = async (req: AuthRequest, res: Response): Prom
 
 export const verifyPayment = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+        const { razorpayOrderId, razorpayPaymentId, razorpaySignature, reservationIds } = req.body;
 
         if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
             res.status(400).json({ error: 'Missing payment verification parameters' });
@@ -148,6 +149,11 @@ export const verifyPayment = async (req: AuthRequest, res: Response): Promise<vo
         );
 
         if (!isValid) {
+            if (Array.isArray(reservationIds)) {
+                await Promise.all(reservationIds.map((id) =>
+                    StockReservationService.releaseStock(String(id), 'payment_verification_failed').catch(() => undefined)
+                ));
+            }
             res.status(400).json({ error: 'Invalid payment signature' });
             return;
         }

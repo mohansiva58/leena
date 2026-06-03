@@ -1,162 +1,404 @@
+import mongoose from 'mongoose';
 import Product from '../models/Product';
 import StockReservation, { IStockReservation } from '../models/StockReservation';
+import InventoryEvent from '../models/InventoryEvent';
 import { generateOrderId } from '../utils/helpers';
-import mongoose from 'mongoose';
 import { getIO } from '../socket';
+import { getRedisClient } from '../config/redis';
+import { cacheDel, cacheInvalidatePrefix } from '../utils/cache';
+
+const DEFAULT_RESERVATION_TTL_SECONDS = Number(process.env.INVENTORY_RESERVATION_TTL_SECONDS || 10 * 60);
+const LOCK_TTL_MS = 10_000;
+
+export interface ReserveLineInput {
+    productId: string;
+    size: string;
+    quantity: number;
+    color?: string;
+}
+
+export interface ReservationGroupResult {
+    reservationGroupId: string;
+    reservationIds: string[];
+    expiresAt: Date;
+    ttlSeconds: number;
+    reservations: IStockReservation[];
+}
+
+const positiveQuantity = (quantity: number): number => {
+    const normalized = Math.floor(Number(quantity));
+    if (!Number.isFinite(normalized) || normalized <= 0) {
+        throw new Error('Quantity must be a positive integer');
+    }
+    return normalized;
+};
+
+const mapToObject = (value: unknown): Record<string, number> => {
+    if (!value) return {};
+    if (value instanceof Map) return Object.fromEntries(value);
+    return value as Record<string, number>;
+};
+
+const getStockFields = (size: string) => ({
+    totalPath: `sizeCounts.${size}`,
+    reservedPath: `sizeReservedCounts.${size}`,
+});
+
+const lockKey = (productId: string, size: string, color?: string) =>
+    `inventory:lock:${productId}:${size}:${color || 'default'}`;
+
+async function withRedisLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const redis = getRedisClient();
+    const token = `${process.pid}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+
+    if (redis) {
+        const locked = await redis.set(key, token, { NX: true, PX: LOCK_TTL_MS });
+        if (!locked) {
+            throw new Error('Stock is being reserved by another checkout. Please try again.');
+        }
+    }
+
+    try {
+        return await fn();
+    } finally {
+        if (redis) {
+            const current = await redis.get(key).catch(() => null);
+            if (current === token) {
+                await redis.del(key).catch(() => undefined);
+            }
+        }
+    }
+}
+
+async function writeInventoryEvent(data: {
+    eventType: 'reserved' | 'released' | 'confirmed' | 'cancelled' | 'expired' | 'adjusted';
+    productId: string;
+    size?: string;
+    color?: string;
+    quantity: number;
+    reservationId?: string;
+    reservationGroupId?: string;
+    orderId?: string;
+    paymentId?: string;
+    userId?: string;
+    idempotencyKey?: string;
+    metadata?: Record<string, unknown>;
+}, session?: mongoose.ClientSession) {
+    await InventoryEvent.create([data], session ? { session } : undefined).catch((error) => {
+        console.warn('Inventory audit event failed:', error);
+    });
+}
 
 export class StockReservationService {
-    /**
-     * Reserve stock for a specific product size.
-     * Uses atomic updates to prevent overselling.
-     */
+    static async getProductStock(productId: string) {
+        const product = await Product.findOne({ productId }).lean();
+        if (!product) throw new Error('Product not found');
+
+        const sizeCounts = mapToObject(product.sizeCounts);
+        const reservedCounts = mapToObject(product.sizeReservedCounts);
+        const sizes = Array.isArray(product.sizes) ? product.sizes : Object.keys(sizeCounts);
+        const bySize = sizes.reduce((acc, size) => {
+            const total = Number(sizeCounts[size] || 0);
+            const reserved = Number(reservedCounts[size] || 0);
+            acc[size] = {
+                totalStock: total,
+                reservedStock: reserved,
+                availableStock: Math.max(0, total - reserved),
+                soldStock: 0,
+                lowStockThreshold: Number(product.lowStockThreshold || 3),
+            };
+            return acc;
+        }, {} as Record<string, { totalStock: number; reservedStock: number; availableStock: number; soldStock: number; lowStockThreshold: number }>);
+
+        return {
+            productId: product.productId,
+            totalStock: Object.values(bySize).reduce((sum, item) => sum + item.totalStock, 0),
+            reservedStock: Object.values(bySize).reduce((sum, item) => sum + item.reservedStock, 0),
+            availableStock: Object.values(bySize).reduce((sum, item) => sum + item.availableStock, 0),
+            bySize,
+            expiresInSeconds: DEFAULT_RESERVATION_TTL_SECONDS,
+        };
+    }
+
     static async reserveStock(
         productId: string,
         size: string,
         quantity: number,
         sessionId: string,
-        userId?: string
+        userId?: string,
+        options?: { color?: string; reservationGroupId?: string; idempotencyKey?: string; ttlSeconds?: number }
     ): Promise<IStockReservation> {
-        // 0. Check if this session already has a valid reservation for this product/size
+        const normalizedQuantity = positiveQuantity(quantity);
+        const idempotencyKey = options?.idempotencyKey || `${sessionId}:${productId}:${size}:${options?.color || 'default'}`;
+
         const existing = await StockReservation.findOne({
+            idempotencyKey,
             productId,
             size,
+            color: options?.color,
             sessionId,
             status: 'reserved',
-            expiresAt: { $gt: new Date() }
+            expiresAt: { $gt: new Date() },
         });
 
-        if (existing) {
-            // If the quantity is the same, just return it. 
-            // If different, we'd need to adjust, but for now let's just return existing.
-            return existing;
+        if (existing) return existing;
+
+        return withRedisLock(lockKey(productId, size, options?.color), async () => {
+            const session = await mongoose.startSession();
+            session.startTransaction();
+
+            try {
+                const expiresAt = new Date(Date.now() + (options?.ttlSeconds || DEFAULT_RESERVATION_TTL_SECONDS) * 1000);
+                const { totalPath, reservedPath } = getStockFields(size);
+
+                const updated = await Product.findOneAndUpdate(
+                    {
+                        productId,
+                        sizes: size,
+                        $expr: {
+                            $gte: [
+                                {
+                                    $subtract: [
+                                        { $ifNull: [`$${totalPath}`, 0] },
+                                        { $ifNull: [`$${reservedPath}`, 0] },
+                                    ],
+                                },
+                                normalizedQuantity,
+                            ],
+                        },
+                    },
+                    {
+                        $inc: {
+                            [reservedPath]: normalizedQuantity,
+                            reservedStock: normalizedQuantity,
+                        },
+                    },
+                    { new: true, session }
+                );
+
+                if (!updated) {
+                    throw new Error(`Insufficient stock for ${productId} size ${size}`);
+                }
+
+                const [reservation] = await StockReservation.create([{
+                    reservationId: generateOrderId(),
+                    reservationGroupId: options?.reservationGroupId,
+                    idempotencyKey,
+                    productId,
+                    size,
+                    color: options?.color,
+                    quantity: normalizedQuantity,
+                    userId,
+                    sessionId,
+                    status: 'reserved',
+                    expiresAt,
+                }], { session });
+
+                await writeInventoryEvent({
+                    eventType: 'reserved',
+                    productId,
+                    size,
+                    color: options?.color,
+                    quantity: normalizedQuantity,
+                    reservationId: reservation.reservationId,
+                    reservationGroupId: options?.reservationGroupId,
+                    userId,
+                    idempotencyKey,
+                }, session);
+
+                await session.commitTransaction();
+                await cacheDel(`product:${productId}`);
+                await cacheInvalidatePrefix('products:');
+                this.broadcastStockUpdate(productId, size).catch(() => undefined);
+                return reservation;
+            } catch (error) {
+                await session.abortTransaction();
+                throw error;
+            } finally {
+                session.endSession();
+            }
+        });
+    }
+
+    static async reserveItems(
+        items: ReserveLineInput[],
+        sessionId: string,
+        userId?: string,
+        idempotencyKey?: string
+    ): Promise<ReservationGroupResult> {
+        if (!Array.isArray(items) || items.length === 0) {
+            throw new Error('Reservation items are required');
         }
 
+        const reservationGroupId = generateOrderId();
+        const ttlSeconds = DEFAULT_RESERVATION_TTL_SECONDS;
+        const reservations: IStockReservation[] = [];
+
+        try {
+            for (const item of items) {
+                reservations.push(await this.reserveStock(
+                    item.productId,
+                    item.size,
+                    item.quantity,
+                    sessionId,
+                    userId,
+                    {
+                        color: item.color,
+                        reservationGroupId,
+                        idempotencyKey: `${idempotencyKey || reservationGroupId}:${item.productId}:${item.size}:${item.color || 'default'}`,
+                        ttlSeconds,
+                    }
+                ));
+            }
+        } catch (error) {
+            await Promise.all(reservations.map((reservation) =>
+                this.releaseStock(reservation.reservationId, 'reservation_failed').catch(() => undefined)
+            ));
+            throw error;
+        }
+
+        const expiresAt = reservations.reduce<Date>((earliest, reservation) =>
+            reservation.expiresAt < earliest ? reservation.expiresAt : earliest,
+        reservations[0].expiresAt);
+
+        return {
+            reservationGroupId,
+            reservationIds: reservations.map((reservation) => reservation.reservationId),
+            expiresAt,
+            ttlSeconds,
+            reservations,
+        };
+    }
+
+    static async releaseStock(reservationId: string, reason = 'released'): Promise<void> {
         const session = await mongoose.startSession();
         session.startTransaction();
 
         try {
-            // 1. Find the product and check if enough AVAILABLE stock exists
-            // available = total - reserved
-            const product = await Product.findOne({ productId }).session(session);
-            if (!product) throw new Error('Product not found');
+            const reservation = await StockReservation.findOneAndUpdate(
+                { reservationId, status: 'reserved' },
+                {
+                    $set: {
+                        status: reason === 'expired' ? 'expired' : reason === 'cancelled' ? 'cancelled' : 'released',
+                        releaseReason: reason,
+                    },
+                },
+                { new: true, session }
+            );
 
-            // sizeCounts is a Mongoose Map at runtime — access safely
-            const sizeCountsMap = product.sizeCounts as unknown as Map<string, number> | Record<string, number> | undefined;
-            const reservedCountsMap = product.sizeReservedCounts as unknown as Map<string, number> | Record<string, number> | undefined;
-
-            const currentStock = sizeCountsMap instanceof Map
-                ? (sizeCountsMap.get(size) || 0)
-                : Number((sizeCountsMap as Record<string, number> | undefined)?.[size] || 0);
-            const reservedStock = reservedCountsMap instanceof Map
-                ? (reservedCountsMap.get(size) || 0)
-                : Number((reservedCountsMap as Record<string, number> | undefined)?.[size] || 0);
-            const availableStock = currentStock - reservedStock;
-
-            if (availableStock < quantity) {
-                throw new Error(`Insufficient stock. Only ${availableStock} available.`);
+            if (!reservation) {
+                await session.commitTransaction();
+                return;
             }
 
-            // 2. Atomically increment the reserved count
-            await Product.updateOne(
-                { productId },
-                { $inc: { [`sizeReservedCounts.${size}`]: quantity } },
-                { session }
-            );
-
-            // 3. Create the reservation record
-            const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-            const reservation = await StockReservation.create([{
-                reservationId: generateOrderId(),
-                productId,
-                size,
-                quantity,
-                userId,
-                sessionId,
-                status: 'reserved',
-                expiresAt,
-            }], { session });
-
-            await session.commitTransaction();
-            
-            // 4. Notify all clients about the stock change
-            this.broadcastStockUpdate(productId, size);
-
-            return reservation[0];
-        } catch (error) {
-            await session.abortTransaction();
-            throw error;
-        } finally {
-            session.endSession();
-        }
-    }
-
-    /**
-     * Release a reservation (e.g., payment failed or expired).
-     */
-    static async releaseStock(reservationId: string): Promise<void> {
-        const reservation = await StockReservation.findOne({ reservationId, status: 'reserved' });
-        if (!reservation) return;
-
-        const session = await mongoose.startSession();
-        session.startTransaction();
-
-        try {
-            // 1. Decrement the reserved count
+            const { reservedPath } = getStockFields(reservation.size);
             await Product.updateOne(
                 { productId: reservation.productId },
-                { $inc: { [`sizeReservedCounts.${reservation.size}`]: -reservation.quantity } },
-                { session }
-            );
-
-            // 2. Mark reservation as released
-            reservation.status = 'released';
-            await reservation.save({ session });
-
-            await session.commitTransaction();
-
-            // 3. Notify clients
-            this.broadcastStockUpdate(reservation.productId, reservation.size);
-        } catch (error) {
-            await session.abortTransaction();
-            throw error;
-        } finally {
-            session.endSession();
-        }
-    }
-
-    /**
-     * Complete a reservation (payment success).
-     * Converts reserved stock to actual deducted stock.
-     */
-    static async completeReservation(reservationId: string): Promise<boolean> {
-        const reservation = await StockReservation.findOne({ reservationId, status: 'reserved' });
-        if (!reservation) return false;
-
-        const session = await mongoose.startSession();
-        session.startTransaction();
-
-        try {
-            // 1. Deduct from total stock AND decrement from reserved count
-            await Product.updateOne(
-                { productId: reservation.productId },
-                { 
-                    $inc: { 
-                        [`sizeCounts.${reservation.size}`]: -reservation.quantity,
-                        [`sizeReservedCounts.${reservation.size}`]: -reservation.quantity,
-                        stock: -reservation.quantity
-                    } 
+                {
+                    $inc: {
+                        [reservedPath]: -reservation.quantity,
+                        reservedStock: -reservation.quantity,
+                    },
                 },
                 { session }
             );
 
-            // 2. Mark reservation as completed
-            reservation.status = 'completed';
-            await reservation.save({ session });
+            await writeInventoryEvent({
+                eventType: reason === 'expired' ? 'expired' : reason === 'cancelled' ? 'cancelled' : 'released',
+                productId: reservation.productId,
+                size: reservation.size,
+                color: reservation.color,
+                quantity: reservation.quantity,
+                reservationId: reservation.reservationId,
+                reservationGroupId: reservation.reservationGroupId,
+                userId: reservation.userId,
+                idempotencyKey: reservation.idempotencyKey,
+                metadata: { reason },
+            }, session);
 
             await session.commitTransaction();
+            await cacheDel(`product:${reservation.productId}`);
+            await cacheInvalidatePrefix('products:');
+            this.broadcastStockUpdate(reservation.productId, reservation.size).catch(() => undefined);
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
+        }
+    }
 
-            // 3. Notify clients
-            this.broadcastStockUpdate(reservation.productId, reservation.size);
+    static async completeReservation(
+        reservationId: string,
+        context?: { orderId?: string; paymentId?: string }
+    ): Promise<boolean> {
+        const session = await mongoose.startSession();
+        session.startTransaction();
+
+        try {
+            const reservation = await StockReservation.findOneAndUpdate(
+                {
+                    reservationId,
+                    status: 'reserved',
+                    expiresAt: { $gt: new Date() },
+                },
+                {
+                    $set: {
+                        status: 'completed',
+                        confirmedOrderId: context?.orderId,
+                        confirmedPaymentId: context?.paymentId,
+                    },
+                },
+                { new: true, session }
+            );
+
+            if (!reservation) {
+                await session.abortTransaction();
+                return false;
+            }
+
+            const { totalPath, reservedPath } = getStockFields(reservation.size);
+            const stockUpdate = await Product.updateOne(
+                {
+                    productId: reservation.productId,
+                    [reservedPath]: { $gte: reservation.quantity },
+                    [totalPath]: { $gte: reservation.quantity },
+                    stock: { $gte: reservation.quantity },
+                },
+                {
+                    $inc: {
+                        [totalPath]: -reservation.quantity,
+                        [reservedPath]: -reservation.quantity,
+                        stock: -reservation.quantity,
+                        reservedStock: -reservation.quantity,
+                        soldStock: reservation.quantity,
+                    },
+                },
+                { session }
+            );
+
+            if (stockUpdate.modifiedCount !== 1) {
+                throw new Error(`Stock conflict while confirming reservation ${reservationId}`);
+            }
+
+            await writeInventoryEvent({
+                eventType: 'confirmed',
+                productId: reservation.productId,
+                size: reservation.size,
+                color: reservation.color,
+                quantity: reservation.quantity,
+                reservationId: reservation.reservationId,
+                reservationGroupId: reservation.reservationGroupId,
+                orderId: context?.orderId,
+                paymentId: context?.paymentId,
+                userId: reservation.userId,
+                idempotencyKey: reservation.idempotencyKey,
+            }, session);
+
+            await session.commitTransaction();
+            await cacheDel(`product:${reservation.productId}`);
+            await cacheInvalidatePrefix('products:');
+            this.broadcastStockUpdate(reservation.productId, reservation.size).catch(() => undefined);
             return true;
         } catch (error) {
             await session.abortTransaction();
@@ -166,21 +408,24 @@ export class StockReservationService {
         }
     }
 
-    /**
-     * Cleanup expired reservations.
-     */
+    static async getReservation(reservationId: string, userId?: string) {
+        const query: Record<string, unknown> = { reservationId };
+        if (userId) query.userId = userId;
+        return StockReservation.findOne(query).lean();
+    }
+
     static async cleanupExpiredReservations(): Promise<void> {
         const expired = await StockReservation.find({
             status: 'reserved',
-            expiresAt: { $lt: new Date() }
-        });
+            expiresAt: { $lte: new Date() },
+        }).limit(100);
 
-        for (const res of expired) {
+        for (const reservation of expired) {
             try {
-                await this.releaseStock(res.reservationId);
-                console.log(`Released expired reservation: ${res.reservationId}`);
+                await this.releaseStock(reservation.reservationId, 'expired');
+                console.log(`Released expired reservation: ${reservation.reservationId}`);
             } catch (err) {
-                console.error(`Failed to release reservation ${res.reservationId}:`, err);
+                console.error(`Failed to release reservation ${reservation.reservationId}:`, err);
             }
         }
     }
@@ -192,33 +437,20 @@ export class StockReservationService {
         const io = getIO();
         if (!io) return;
 
-        // Build per-size available stock map — sizeCounts is a Mongoose Map at runtime
-        const sizeCountsRaw = product.sizeCounts as unknown as Map<string, number> | Record<string, number> | undefined;
-        const reservedRaw = product.sizeReservedCounts as unknown as Map<string, number> | Record<string, number> | undefined;
-
-        const getSizeCount = (map: Map<string, number> | Record<string, number> | undefined, s: string): number => {
-            if (!map) return 0;
-            if (map instanceof Map) return map.get(s) || 0;
-            return Number((map as Record<string, number>)[s] || 0);
-        };
-
-        const keys: string[] = sizeCountsRaw instanceof Map
-            ? Array.from(sizeCountsRaw.keys())
-            : sizeCountsRaw ? Object.keys(sizeCountsRaw) : [];
-
-        const sizesToBroadcast: string[] = size ? [size] : keys;
+        const sizeCounts = mapToObject(product.sizeCounts);
+        const reservedCounts = mapToObject(product.sizeReservedCounts);
+        const sizesToBroadcast = size ? [size] : Object.keys(sizeCounts);
 
         for (const s of sizesToBroadcast) {
-            const total = getSizeCount(sizeCountsRaw, s);
-            const reserved = getSizeCount(reservedRaw, s);
-            const available = Math.max(0, total - reserved);
-
+            const total = Number(sizeCounts[s] || 0);
+            const reserved = Number(reservedCounts[s] || 0);
             io.emit('stockUpdate', {
                 productId,
                 size: s,
-                stock: available,
+                stock: Math.max(0, total - reserved),
+                totalStock: total,
+                reservedStock: reserved,
             });
         }
     }
-
 }

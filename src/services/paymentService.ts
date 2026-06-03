@@ -12,6 +12,7 @@ export interface PaymentVerificationData {
     razorpayOrderId: string;
     razorpayPaymentId: string;
     razorpaySignature: string;
+    reservationIds?: string[];
 }
 
 export const paymentService = {

@@ -10,7 +10,6 @@ import { sendOrderConfirmationEmail, sendOrderStatusUpdateEmail } from '../confi
 import { cacheDel } from '../utils/cache';
 import {
     resolveOrderLines,
-    decrementStockForLines,
     incrementStockForLines,
     RawOrderItemInput,
 } from '../services/orderLineItems';
@@ -45,6 +44,21 @@ function validateShippingAddress(addr: ReturnType<typeof normalizeShippingAddres
         return 'Invalid phone number';
     }
     return null;
+}
+
+function buildLineQuantityMap(lines: Array<{ productId: string; size: string; quantity: number }>): Record<string, number> {
+    return lines.reduce((acc, line) => {
+        const key = `${line.productId}:${line.size}`;
+        acc[key] = (acc[key] || 0) + line.quantity;
+        return acc;
+    }, {} as Record<string, number>);
+}
+
+function sameQuantityMap(left: Record<string, number>, right: Record<string, number>): boolean {
+    const leftKeys = Object.keys(left).sort();
+    const rightKeys = Object.keys(right).sort();
+    if (leftKeys.length !== rightKeys.length) return false;
+    return leftKeys.every((key, index) => key === rightKeys[index] && left[key] === right[key]);
 }
 
 export const createOrder = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -206,32 +220,49 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
 
         const orderId = generateOrderId();
 
+        let completedReservations = false;
         try {
-            if (reservationIds && Array.isArray(reservationIds) && reservationIds.length > 0) {
-                // Check if ALL reservations exist and are valid (i.e. 'reserved' status and not expired)
-                const validReservationsCount = await StockReservation.countDocuments({
-                    reservationId: { $in: reservationIds },
-                    status: 'reserved',
-                    expiresAt: { $gt: new Date() }
-                });
-
-                if (validReservationsCount === reservationIds.length) {
-                    // All reservations are valid, complete them atomically
-                    for (const resId of reservationIds) {
-                        await StockReservationService.completeReservation(resId);
-                    }
-                } else {
-                    // One or more reservations have expired or are missing!
-                    // To prevent stock leaks, release any remaining active reservations in this order
-                    for (const resId of reservationIds) {
-                        await StockReservationService.releaseStock(resId).catch(() => undefined);
-                    }
-                    // Fall back to direct atomic decrement of stock for all items
-                    await decrementStockForLines(lines);
-                }
-            } else {
-                await decrementStockForLines(lines);
+            if (!reservationIds || !Array.isArray(reservationIds) || reservationIds.length === 0) {
+                res.status(409).json({ error: 'Checkout reservation is required. Please refresh your cart and try again.' });
+                return;
             }
+
+            const activeReservations = await StockReservation.find({
+                reservationId: { $in: reservationIds },
+                userId,
+                status: 'reserved',
+                expiresAt: { $gt: new Date() },
+            }).lean();
+
+            if (activeReservations.length !== reservationIds.length) {
+                for (const resId of reservationIds) {
+                    await StockReservationService.releaseStock(resId, 'invalid_checkout').catch(() => undefined);
+                }
+                res.status(409).json({ error: 'Checkout reservation expired. Please return to cart and try again.' });
+                return;
+            }
+
+            const lineMap = buildLineQuantityMap(lines);
+            const reservationMap = buildLineQuantityMap(activeReservations);
+
+            if (!sameQuantityMap(lineMap, reservationMap)) {
+                for (const resId of reservationIds) {
+                    await StockReservationService.releaseStock(resId, 'reservation_mismatch').catch(() => undefined);
+                }
+                res.status(409).json({ error: 'Checkout reservation does not match your cart. Please refresh your cart.' });
+                return;
+            }
+
+            for (const resId of reservationIds) {
+                const confirmed = await StockReservationService.completeReservation(resId, {
+                    orderId,
+                    paymentId: razorpayPaymentId,
+                });
+                if (!confirmed) {
+                    throw new Error('Checkout reservation expired. Please contact support if your payment was captured.');
+                }
+            }
+            completedReservations = true;
         } catch (stockErr) {
             if (paymentMethod === 'razorpay' && razorpayPaymentId) {
                 await PaymentClaim.deleteOne({ razorpayPaymentId }).catch(() => undefined);
@@ -311,7 +342,9 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
             });
         } catch (createErr: unknown) {
             const code = (createErr as { code?: number }).code;
-            await incrementStockForLines(lines).catch((e) => console.error('Stock rollback failed:', e));
+            if (!completedReservations) {
+                await incrementStockForLines(lines).catch((e) => console.error('Stock rollback failed:', e));
+            }
             if (paymentMethod === 'razorpay' && razorpayPaymentId) {
                 await PaymentClaim.deleteOne({ razorpayPaymentId }).catch(() => undefined);
             }

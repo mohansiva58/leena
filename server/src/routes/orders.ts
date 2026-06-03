@@ -13,6 +13,7 @@ const router = express.Router();
 router.use(authenticateUser);
 
 router.post('/', createOrder);
+router.post('/create-from-checkout', createOrder);
 router.get('/', getOrders);
 router.get('/:orderId', getOrderById);
 router.post('/:orderId/cancel', cancelOrder);

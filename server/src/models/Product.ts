@@ -14,6 +14,19 @@ export interface IColorVariant {
     stock?: number; // Stock for this specific color
 }
 
+export interface IVariantStock {
+    variantKey: string;
+    size: string;
+    color?: string;
+    totalStock: number;
+    availableStock: number;
+    reservedStock: number;
+    soldStock: number;
+    lowStockThreshold: number;
+    lastAdjustedAt?: Date;
+    lastAdjustedBy?: string;
+}
+
 export interface IProduct extends Document {
     productId: string;
     name: string;
@@ -30,6 +43,12 @@ export interface IProduct extends Document {
     newArrival: boolean;
     isBestseller: boolean;
     stock: number;
+    totalStock?: number;
+    availableStock?: number;
+    reservedStock?: number;
+    soldStock?: number;
+    lowStockThreshold?: number;
+    variantStock?: IVariantStock[];
     sizeReservedCounts?: Record<string, number>;
     setType?: string; // e.g., "1 piece", "2 piece set", "3 piece set"
     colors?: IColorVariant[]; // Color variants
@@ -78,6 +97,23 @@ const ProductSchema: Schema = new Schema(
         newArrival: { type: Boolean, default: false },
         isBestseller: { type: Boolean, default: false },
         stock: { type: Number, default: 100, min: 0 },
+        totalStock: { type: Number, min: 0, default: 0 },
+        availableStock: { type: Number, min: 0, default: 0 },
+        reservedStock: { type: Number, min: 0, default: 0 },
+        soldStock: { type: Number, min: 0, default: 0 },
+        lowStockThreshold: { type: Number, min: 0, default: 3 },
+        variantStock: [{
+            variantKey: { type: String, required: true },
+            size: { type: String, required: true },
+            color: { type: String },
+            totalStock: { type: Number, min: 0, default: 0 },
+            availableStock: { type: Number, min: 0, default: 0 },
+            reservedStock: { type: Number, min: 0, default: 0 },
+            soldStock: { type: Number, min: 0, default: 0 },
+            lowStockThreshold: { type: Number, min: 0, default: 3 },
+            lastAdjustedAt: { type: Date },
+            lastAdjustedBy: { type: String },
+        }],
         setType: { type: String }, // e.g., "1 piece", "2 piece set", "3 piece set"
         colors: [{
             colorName: { type: String, required: true },
@@ -98,5 +134,6 @@ const ProductSchema: Schema = new Schema(
 ProductSchema.index({ category: 1, price: 1 });
 ProductSchema.index({ newArrival: 1, isBestseller: 1 });
 ProductSchema.index({ name: 'text', description: 'text' });
+ProductSchema.index({ productId: 1, 'variantStock.variantKey': 1 });
 
 export default mongoose.model<IProduct>('Product', ProductSchema);

@@ -8,6 +8,7 @@ import {
     updateProduct,
     deleteProduct,
     checkStockAvailability,
+    getProductStock,
     reserveStock,
     releaseStock
 } from '../controllers/productController';
@@ -22,6 +23,7 @@ router.post('/check-stock', checkStockAvailability);
 router.post('/reserve', reserveStock);
 router.post('/release', releaseStock);
 router.get('/', getAllProducts);
+router.get('/:id/stock', getProductStock);
 router.get('/:id', getProductById);
 
 // Admin-only mutations

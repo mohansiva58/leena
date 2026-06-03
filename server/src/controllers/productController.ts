@@ -18,6 +18,7 @@ import {
 import mongoose from 'mongoose';
 
 import { StockReservationService } from '../services/StockReservationService';
+import { getProductStock } from './inventoryController';
 import { getIO } from '../socket';
 
 const findStockCatalogItem = async (productId: string) => {
@@ -198,7 +199,7 @@ export const bulkCreateProducts = async (req: AuthRequest, res: Response): Promi
  */
 export const reserveStock = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { productId, size, quantity, sessionId, userId } = req.body;
+        const { productId, size, quantity, sessionId, userId, color, idempotencyKey } = req.body;
 
         if (!productId || !size || !quantity || !sessionId) {
             res.status(400).json({ error: 'Missing required reservation fields' });
@@ -210,7 +211,11 @@ export const reserveStock = async (req: Request, res: Response): Promise<void> =
             size,
             Number(quantity),
             sessionId,
-            userId
+            userId,
+            {
+                color: color ? String(color) : undefined,
+                idempotencyKey: idempotencyKey ? String(idempotencyKey) : undefined,
+            }
         );
 
         res.status(201).json(reservation);
@@ -219,6 +224,8 @@ export const reserveStock = async (req: Request, res: Response): Promise<void> =
         res.status(409).json({ error: errorMessage });
     }
 };
+
+export { getProductStock };
 
 /**
  * Release stock reservation.
@@ -551,10 +558,24 @@ export const checkStockAvailability = async (req: Request, res: Response): Promi
             const sizeCounts = rawSizeCounts instanceof Map
                 ? Object.fromEntries(rawSizeCounts)
                 : rawSizeCounts as Record<string, number> | undefined;
-            const availableForSize =
+
+                
+            const rawReservedCounts = 'sizeReservedCounts' in catalogItem ? catalogItem.sizeReservedCounts : undefined;
+            const sizeReservedCounts = rawReservedCounts instanceof Map
+                ? Object.fromEntries(rawReservedCounts)
+                : rawReservedCounts as Record<string, number> | undefined;
+
+            const totalForSize =
                 sizeCounts && typeof sizeCounts === 'object'
                     ? Number(sizeCounts[size] || 0)
                     : Number(catalogItem.stock || 0);
+
+            const reservedForSize =
+                sizeReservedCounts && typeof sizeReservedCounts === 'object'
+                    ? Number(sizeReservedCounts[size] || 0)
+                    : 0;
+
+            const availableForSize = Math.max(0, totalForSize - reservedForSize);
 
             const isAvailable = availableForSize >= quantity;
             if (!isAvailable) allAvailable = false;

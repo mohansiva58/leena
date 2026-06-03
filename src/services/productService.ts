@@ -120,7 +120,7 @@ export const productService = {
         color?: string;
         idempotencyKey?: string;
     }): Promise<{ reservationId: string }> => {
-        const response = await api.post('/inventory/reserve', data);
+        const response = await api.post('/products/reserve', data);
         return response.data;
     },
 

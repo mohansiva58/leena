@@ -14,6 +14,7 @@ import { orderService, CreateOrderData } from '@/services/orderService';
 import { couponService } from '@/services/couponService';
 import { userService, SavedAddress } from '@/services/userService';
 import { productService } from '@/services/productService';
+import { inventoryService } from '@/services/inventoryService';
 import { useSocket } from '@/hooks/useSocket';
 import { saleService } from '@/services/saleService';
 import { indianStates } from '@/lib/indianStates';
@@ -54,6 +55,39 @@ export default function CheckoutPage() {
 
   const paymentSucceeded = useRef(false);
 
+  // All state declarations must come BEFORE any useEffect
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [policyAccepted, setPolicyAccepted] = useState(false);
+
+  const [savedAddress, setSavedAddress] = useState(false);
+  const [isEditingAddress, setIsEditingAddress] = useState(true);
+  const [savedAddressId, setSavedAddressId] = useState<string | null>(null);
+  const [pincodeError, setPincodeError] = useState<string>('');
+  const [pincodeValid, setPincodeValid] = useState(false);
+
+  const [formData, setFormData] = useState({
+    fullName: '',
+    phone: '',
+    email: '',
+    address: '',
+    city: '',
+    state: '',
+    pincode: '',
+  });
+
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    discountType: 'percentage' | 'fixed';
+    discountValue: number;
+  } | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [stockErrors, setStockErrors] = useState<Record<string, string>>({});
+  const [validatingStock, setValidatingStock] = useState(false);
+  const [reservationExpiresAt, setReservationExpiresAt] = useState<Date | null>(null);
+  const [reservationTimerText, setReservationTimerText] = useState('');
+
   // ── Reservation Logic ────────────────────────────────────────────────────
   // Reserve stock when user enters checkout. Release ALL reservations when
   // user leaves checkout without paying (unmount).
@@ -70,18 +104,21 @@ export default function CheckoutPage() {
         toast.loading('Securing your items...', { id: loadingToastId });
 
         try {
-          for (const item of items) {
-            const res = await productService.reserveStock({
-              productId: getProductId(item.product) || '',
-              size: item.size,
-              quantity: item.quantity,
-              sessionId,
-              userId: user?.uid
-            });
-            reservationIds.push(res.reservationId);
+          const reserveItems = items.map((item) => ({
+            productId: getProductId(item.product) || '',
+            size: item.size,
+            quantity: item.quantity,
+            color: item.color || undefined,
+          }));
+          const res = await inventoryService.reserveStock(reserveItems, sessionId);
+          for (const r of res.reservations) {
+            reservationIds.push(r.reservationId);
           }
           reservationsMade = reservationIds;
           store.setReservationIds(reservationIds);
+          if (res.expiresAt) {
+            setReservationExpiresAt(new Date(res.expiresAt));
+          }
           toast.success('Items secured for checkout!', { id: loadingToastId });
         } catch (err: unknown) {
           const error = err as { response?: { data?: { error?: string } } };
@@ -104,7 +141,7 @@ export default function CheckoutPage() {
 
       if (ids.length > 0) {
         ids.forEach((reservationId) => {
-          fetch(`${API_BASE_URL}/products/release`, {
+          fetch(`${API_BASE_URL}/inventory/release`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -143,8 +180,8 @@ export default function CheckoutPage() {
       if (ids.length > 0) {
         // Fire-and-forget: release all reservations silently
         ids.forEach((reservationId) => {
-          productService.releaseStock(reservationId).catch(() => {
-            // Silently ignore — server will clean up via cron after 15 min
+          inventoryService.releaseStock(reservationId).catch(() => {
+            // Silently ignore — server will clean up after 15 min
           });
         });
         store.clearReservations();
@@ -156,35 +193,33 @@ export default function CheckoutPage() {
   // ^ Intentionally only depends on auth, not items — we want reserve to run
   //   once when entering checkout, and cleanup to run once when leaving.
 
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [policyAccepted, setPolicyAccepted] = useState(false);
+  // Reservation timer: show "Reserved for X:XX" and refresh every 5 min
+  useEffect(() => {
+    if (!reservationExpiresAt) return;
 
-  const [savedAddress, setSavedAddress] = useState(false);
-  const [isEditingAddress, setIsEditingAddress] = useState(true);
-  const [savedAddressId, setSavedAddressId] = useState<string | null>(null);
-  const [pincodeError, setPincodeError] = useState<string>('');
-  const [pincodeValid, setPincodeValid] = useState(false);
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, reservationExpiresAt.getTime() - Date.now());
+      if (remaining <= 0) {
+        setReservationTimerText('Expired');
+        return;
+      }
+      const mins = Math.floor(remaining / 60000);
+      const secs = Math.floor((remaining % 60000) / 1000);
+      setReservationTimerText(`${mins}:${String(secs).padStart(2, '0')}`);
 
-  const [formData, setFormData] = useState({
-    fullName: '',
-    phone: '',
-    email: '',
-    address: '',
-    city: '',
-    state: '',
-    pincode: '',
-  });
+      // Refresh reservations when 5 min remain
+      if (mins <= 5 && remaining > 0) {
+        const store = useCartStore.getState();
+        const ids = store.reservationIds || [];
+        const sessionId = store.sessionId;
+        if (ids.length > 0 && sessionId) {
+          inventoryService.refreshAllReservations(sessionId).catch(() => {});
+        }
+      }
+    }, 1000);
 
-  const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<{ 
-    code: string; 
-    discountType: 'percentage' | 'fixed';
-    discountValue: number;
-  } | null>(null);
-  const [couponLoading, setCouponLoading] = useState(false);
-  const [couponError, setCouponError] = useState<string | null>(null);
-  const [stockErrors, setStockErrors] = useState<Record<string, string>>({});
-  const [validatingStock, setValidatingStock] = useState(false);
+    return () => clearInterval(interval);
+  }, [reservationExpiresAt]);
 
   const subtotal = getTotalPrice();
   const discountAmount = appliedCoupon 
@@ -253,16 +288,20 @@ export default function CheckoutPage() {
         return false;
       }
 
-      const result = await productService.checkStockAvailability(itemsToCheck);
+      // Check stock via inventory service per product
+      let allAvailable = true;
+      const errors: Record<string, string> = {};
+      for (const item of itemsToCheck) {
+        const stock = await inventoryService.getProductStock(item.productId);
+        const sizeInfo = stock.sizes[item.size];
+        if (!sizeInfo || sizeInfo.available < item.quantity) {
+          allAvailable = false;
+          const key = `${item.productId}-${item.size}`;
+          errors[key] = `Only ${sizeInfo?.available ?? 0} available (tried to order ${item.quantity})`;
+        }
+      }
 
-      if (!result.available) {
-        const errors: Record<string, string> = {};
-        result.items.forEach(item => {
-          if (!item.available) {
-            const key = `${item.productId}-${item.size}`;
-            errors[key] = `Only ${item.maxAvailable} available (tried to order ${item.quantity})`;
-          }
-        });
+      if (!allAvailable) {
         setStockErrors(errors);
         toast.error('Some items have insufficient stock');
         return false;
@@ -866,6 +905,22 @@ export default function CheckoutPage() {
             >
               <div className="bg-card rounded-2xl shadow-lg p-8">
                 <h2 className="font-serif text-2xl font-bold mb-6">Payment Method</h2>
+
+                {/* Reservation timer */}
+                {reservationTimerText && reservationTimerText !== 'Expired' && (
+                  <div className="mb-4 flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                      <span className="text-sm font-medium text-foreground">Items secured for checkout</span>
+                    </div>
+                    <span className="text-sm font-mono font-semibold text-primary">{reservationTimerText}</span>
+                  </div>
+                )}
+                {reservationTimerText === 'Expired' && (
+                  <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive font-medium">
+                    Reservation expired. Please return to cart to re-reserve.
+                  </div>
+                )}
 
                 <div className="space-y-4 mb-8">
                   <label

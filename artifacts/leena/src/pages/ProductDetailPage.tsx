@@ -32,6 +32,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRealTimeStock } from '@/hooks/useRealTimeStock';
 
 import { productService } from '@/services/productService';
+import { inventoryService } from '@/services/inventoryService';
 import { saleService } from '@/services/saleService';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -350,19 +351,14 @@ export default function ProductDetailPage() {
     toast.loading('Securing item...', { id: loadingToastId });
     try {
       const sessionId = useCartStore.getState().sessionId;
-      const reservationIds: string[] = [];
-
-      for (const selection of selections) {
-        const res = await productService.reserveStock({
-          productId: getProductId(product as Product),
-          size: selection.size,
-          quantity: selection.quantity,
-          sessionId,
-          userId: user?.uid
-        });
-        reservationIds.push(res.reservationId);
-      }
-
+      const reserveItems = selections.map((s) => ({
+        productId: getProductId(product as Product),
+        size: s.size,
+        quantity: s.quantity,
+        color: selectedColor || undefined,
+      }));
+      const res = await inventoryService.reserveStock(reserveItems, sessionId);
+      const reservationIds = res.reservations.map((r) => r.reservationId);
       useCartStore.getState().setReservationIds(reservationIds);
       
       const success = addSelectionsToCart();

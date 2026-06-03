@@ -1,0 +1,164 @@
+You are a senior full-stack engineer and production architect. I have an e-commerce website with a React frontend and an Express + MongoDB backend, using Redis for caching, Firebase auth, and Razorpay checkout. The current bug is that stock count is not updating correctly in both UI and backend, and items can still be bought even when stock should be reserved. I want you to fix this properly with a production-grade inventory system like Flipkart, Myntra, Amazon, and other large e-commerce platforms.
+
+Goal:
+Build a reliable inventory reservation and stock update flow that prevents overselling, keeps UI and backend in sync, and locks items during checkout until payment is completed, failed, expired, or cancelled.
+
+Requirements:
+1. Implement true stock management at the backend as the single source of truth.
+2. Add inventory reservation / stock locking when a user enters checkout or places an order.
+3. Release locked stock automatically if:
+   - checkout is abandoned,
+   - payment fails,
+   - payment times out,
+   - user cancels the order,
+   - Razorpay verification fails,
+   - reservation expires.
+4. Deduct final stock only after successful payment verification or confirmed COD order.
+5. Prevent race conditions when multiple users try to buy the last item at the same time.
+6. Ensure UI always reflects backend stock accurately after cart updates, checkout changes, cancellation, and order completion.
+7. Handle size-wise / variant-wise stock, not just product-level stock.
+8. Make the solution production ready, scalable, and safe for real traffic.
+
+Current stack to respect:
+- Frontend: React + Vite + TypeScript + Zustand
+- Backend: Express.js + TypeScript
+- Database: MongoDB
+- Cache / locking: Redis
+- Auth: Firebase Authentication
+- Payments: Razorpay
+- Email: Nodemailer
+- Existing cart and order APIs already exist
+
+What to implement:
+
+A. Inventory model
+- Update the Product schema so stock is tracked per variant/size/color if applicable.
+- Store fields like:
+  - totalStock
+  - availableStock
+  - reservedStock
+  - soldStock
+  - lowStockThreshold
+  - variantStock array or nested variant inventory
+- Add timestamps and audit metadata.
+
+B. Reservation logic
+- Create a reservation system in Redis and MongoDB.
+- When a user clicks “Proceed to Checkout” or enters payment flow:
+  - verify availability,
+  - lock/reserve stock temporarily,
+  - create a reservation record with TTL,
+  - prevent the same stock from being reserved twice.
+- Use atomic operations / transactions / conditional updates so stock cannot go negative.
+
+C. Checkout flow
+- On checkout start:
+  - reserve inventory for each item in cart,
+  - return reservation ID and expiry time to frontend.
+- While reservation is active:
+  - show a countdown timer in UI,
+  - show “reserved” status,
+  - disable quantity increases if stock is locked,
+  - refresh stock from backend.
+- If user leaves page, reservation should expire automatically.
+
+D. Payment flow
+- For Razorpay:
+  - do not finalize stock deduction before payment verification.
+  - after payment success and signature verification:
+    - convert reservation into a confirmed order,
+    - decrement actual stock,
+    - clear reserved stock,
+    - clear cart,
+    - send confirmation email.
+- For COD:
+  - reserve stock first,
+  - confirm and deduct stock when order is created,
+  - release reservation immediately after order confirmation.
+
+E. Cancellation / failure handling
+- If payment fails or order is cancelled:
+  - release reserved stock immediately,
+  - update UI stock availability,
+  - mark reservation as released/expired/cancelled.
+- If reservation expires:
+  - a background worker or cron job should auto-release it.
+- Make it idempotent so the same webhook or callback cannot double-deduct stock.
+
+F. APIs to add or update
+Create or refactor these endpoints:
+- GET /api/products/:id/stock
+- POST /api/inventory/reserve
+- POST /api/inventory/release
+- POST /api/inventory/confirm
+- POST /api/orders/create-from-checkout
+- POST /api/payment/verify
+- POST /api/orders/:id/cancel
+- POST /api/webhooks/razorpay
+- GET /api/cart/availability
+- GET /api/checkout/reservation/:id
+
+G. Database safety
+- Use MongoDB transactions where appropriate.
+- Use optimistic concurrency or conditional updates for stock decrement.
+- Guarantee idempotency keys for reservation and payment confirmation.
+- Record all inventory events in an audit log collection:
+  - reserved
+  - released
+  - confirmed
+  - cancelled
+  - expired
+  - adjusted
+
+H. Redis usage
+- Use Redis for temporary reservation locks and TTL expiry.
+- Store reservation keys with expiration time.
+- Use Redis only as a fast lock layer, not as the only source of truth.
+- If Redis is unavailable, system should fail safely.
+
+I. Frontend updates
+- Update product cards, cart, and checkout UI to show real-time stock status.
+- Show messages like:
+  - “Only 2 left”
+  - “Reserved for 10:00 minutes”
+  - “Out of stock”
+- Disable checkout if stock cannot be reserved.
+- Sync product availability after every cart change and checkout action.
+- If stock changes while user is on the page, refresh UI gracefully.
+
+J. Edge cases to handle
+- Two users purchasing the last item simultaneously.
+- User increases quantity after reservation.
+- User opens multiple tabs.
+- Payment succeeds but webhook arrives late.
+- Payment verification happens twice.
+- Reservation expires during payment redirect.
+- Backend restarts while reservations exist.
+- Cart contains stale stock items.
+- Partial stock availability in multi-item cart.
+- Variant stock mismatch.
+
+K. Deliverables
+Provide:
+1. The full architecture and flow explanation.
+2. Updated backend models.
+3. Controllers, services, and route changes.
+4. Redis reservation logic.
+5. MongoDB transaction logic.
+6. Frontend stock-sync changes.
+7. Razorpay webhook and verification handling.
+8. A cron/job to release expired reservations.
+9. Testing strategy with concurrency test cases.
+10. Final production-ready code with clean folder structure.
+
+Important coding rules:
+- Do not use naive stock decrement in the frontend.
+- Do not trust frontend stock values.
+- Never allow stock to go below zero.
+- Make all critical inventory operations atomic and idempotent.
+- Keep the code clean, typed, and production-grade.
+- Preserve my existing project structure where possible.
+- Explain exactly what files to create or modify.
+- If existing code has to be changed, show the diff-style changes clearly.
+
+First, analyze the bug and then produce the corrected implementation plan and code.

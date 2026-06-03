@@ -77,11 +77,11 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                 const sizes = Array.isArray(product.sizes) ? product.sizes : String(product.sizes || '').split(',').map((s) => s.trim()).filter(Boolean);
                 const sizeCounts = product.sizeCounts || {};
                 setFormData({
-                    name: product.name,
-                    price: product.price.toString(),
+                    name: product.name ?? '',
+                    price: product.price?.toString() ?? '',
                     originalPrice: product.originalPrice?.toString() || '',
-                    category: product.category,
-                    description: product.description,
+                    category: product.category ?? '',
+                    description: product.description ?? '',
                     stock: product.stock?.toString() || String(Object.values(sizeCounts).reduce((sum, value) => sum + Number(value || 0), 0)),
                     setType: product.setType || '1 piece',
                     isNew: product.isNew || false,
@@ -94,7 +94,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                         quantity: String(sizeCounts[size] ?? 0),
                     }))
                 );
-                setMainImagePreview(product.image);
+                setMainImagePreview(product.image ?? '');
                 setAdditionalImagePreviews(product.images || []);
                 setExistingImageUrls(product.images || []);
             } else {

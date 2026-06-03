@@ -119,7 +119,7 @@ export default function WishlistPage() {
                                                                 <span
                                                                     key={i}
                                                                     className={`text-[10px] ${
-                                                                        i < Math.floor(product.rating)
+                                                                        i < Math.floor(product.rating ?? 0)
                                                                             ? 'text-primary'
                                                                             : 'text-muted'
                                                                     }`}

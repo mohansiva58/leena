@@ -211,6 +211,31 @@ export function ProductCard({
                 </span>
               )}
             </div>
+
+            {/* STOCK STATUS */}
+            {(() => {
+              const counts = product.sizeCounts || {};
+              const reserved = product.sizeReservedCounts || {};
+              const available = Object.keys(counts).reduce(
+                (sum, size) => sum + Math.max(0, (counts[size] || 0) - (reserved[size] || 0)),
+                0
+              );
+              if (available <= 0) {
+                return (
+                  <span className="text-[11px] font-semibold text-red-500 tracking-wider">
+                    OUT OF STOCK
+                  </span>
+                );
+              }
+              if (available <= 5) {
+                return (
+                  <span className="text-[11px] font-semibold text-amber-600 tracking-wider">
+                    ONLY {available} LEFT
+                  </span>
+                );
+              }
+              return null;
+            })()}
           </div>
         </div>
       </Link>

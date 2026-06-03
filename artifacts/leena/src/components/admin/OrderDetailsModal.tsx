@@ -491,7 +491,7 @@ function PrintContent({ order, printMode }: PrintContentProps) {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5pt 0' }}>
                 <span>Shipping:</span>
-                <span>₹{order.shipping.toLocaleString()}</span>
+                <span>₹{(order.shipping ?? 0).toLocaleString()}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8pt 0', borderTop: '2px solid black', fontSize: '12pt', fontWeight: 'bold' }}>
                 <span>TOTAL:</span>

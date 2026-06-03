@@ -1,12 +1,27 @@
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { XCircle, RefreshCw, ShoppingCart, AlertCircle } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { useCartStore } from '@/lib/cart';
+import { inventoryService } from '@/services/inventoryService';
 
 export default function PaymentFailedPage() {
     const location = useLocation();
     const error = location.state?.error || "Transaction was declined by the bank.";
+
+    // Release any held reservations when payment fails
+    useEffect(() => {
+        const store = useCartStore.getState();
+        const ids = store.reservationIds || [];
+        if (ids.length > 0) {
+            ids.forEach((id) => {
+                inventoryService.releaseStock(id).catch(() => {});
+            });
+            store.clearReservations();
+        }
+    }, []);
 
     return (
         <div className="min-h-screen bg-background flex flex-col">

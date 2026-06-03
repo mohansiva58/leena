@@ -126,6 +126,27 @@ export default function CartPage() {
                                 </p>
                               )}
 
+                              {/* Stock status */}
+                              {(() => {
+                                const counts = item.product.sizeCounts || {};
+                                const reserved = item.product.sizeReservedCounts || {};
+                                const available = Math.max(0, (counts[item.size] || 0) - (reserved[item.size] || 0));
+                                if (available <= 0) {
+                                  return (
+                                    <p className="text-xs text-destructive font-medium mt-1">
+                                      Out of stock
+                                    </p>
+                                  );
+                                }
+                                if (available < item.quantity) {
+                                  return (
+                                    <p className="text-xs text-amber-600 font-medium mt-1">
+                                      Only {available} available
+                                    </p>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </div>
                             <motion.button
                               whileHover={{ scale: 1.05, backgroundColor: 'rgb(239, 68, 68)' }}
@@ -164,6 +185,21 @@ export default function CartPage() {
                               ₹{(item.product.price * item.quantity).toLocaleString()}
                             </p>
                           </div>
+
+                          {/* Stock warning below quantity */}
+                          {(() => {
+                            const counts = item.product.sizeCounts || {};
+                            const reserved = item.product.sizeReservedCounts || {};
+                            const available = Math.max(0, (counts[item.size] || 0) - (reserved[item.size] || 0));
+                            if (available < item.quantity && available > 0) {
+                              return (
+                                <p className="text-xs text-amber-600 font-medium mt-1">
+                                  Insufficient stock — only {available} available
+                                </p>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </div>
                     </motion.div>

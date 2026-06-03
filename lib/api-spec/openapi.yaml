@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: inventory
+    description: Inventory reservation & stock management
 paths:
   /healthz:
     get:
@@ -24,6 +26,225 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /inventory/reserve:
+    post:
+      operationId: reserveStock
+      tags: [inventory]
+      summary: Reserve stock for cart items
+      description: Reserves stock for a batch of cart items with 15-minute TTL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReserveStockRequest"
+      responses:
+        "201":
+          description: Reserved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReserveStockResponse"
+        "400":
+          description: Bad request
+        "409":
+          description: Insufficient stock
+  /inventory/release:
+    post:
+      operationId: releaseStock
+      tags: [inventory]
+      summary: Release a reservation
+      description: Idempotent release of a stock reservation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reservationId]
+              properties:
+                reservationId:
+                  type: string
+      responses:
+        "200":
+          description: Released
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+  /inventory/confirm:
+    post:
+      operationId: confirmReservation
+      tags: [inventory]
+      summary: Confirm reservation after payment
+      description: Converts reserved stock to sold stock
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reservationId]
+              properties:
+                reservationId:
+                  type: string
+      responses:
+        "200":
+          description: Confirmed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+  /inventory/refresh:
+    post:
+      operationId: refreshReservation
+      tags: [inventory]
+      summary: Refresh a single reservation TTL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reservationId]
+              properties:
+                reservationId:
+                  type: string
+      responses:
+        "200":
+          description: Refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+  /inventory/refresh-all:
+    post:
+      operationId: refreshAllReservations
+      tags: [inventory]
+      summary: Refresh all reservations for a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessionId]
+              properties:
+                sessionId:
+                  type: string
+      responses:
+        "200":
+          description: Refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  refreshed:
+                    type: number
+  /inventory/release-all:
+    post:
+      operationId: releaseAllForSession
+      tags: [inventory]
+      summary: Release all reservations for a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessionId]
+              properties:
+                sessionId:
+                  type: string
+      responses:
+        "200":
+          description: Released
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  released:
+                    type: number
+  /inventory/products/{id}/stock:
+    get:
+      operationId: getProductStock
+      tags: [inventory]
+      summary: Get real-time stock for a product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Stock data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductStock"
+        "404":
+          description: Product not found
+  /inventory/products/{productId}/audit:
+    get:
+      operationId: getAuditHistory
+      tags: [inventory]
+      summary: Get inventory audit history for a product
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: number
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: number
+            default: 0
+        - name: eventType
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Audit history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuditLog"
+                  total:
+                    type: number
 components:
   schemas:
     HealthStatus:
@@ -33,4 +254,121 @@ components:
           type: string
       required:
         - status
-
+    ReservationItem:
+      type: object
+      properties:
+        productId:
+          type: string
+        size:
+          type: string
+        quantity:
+          type: number
+        color:
+          type: string
+      required:
+        - productId
+        - size
+        - quantity
+    ReserveStockRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReservationItem"
+        sessionId:
+          type: string
+      required:
+        - items
+        - sessionId
+    ReservationResult:
+      type: object
+      properties:
+        reservationId:
+          type: string
+        productId:
+          type: string
+        size:
+          type: string
+        quantity:
+          type: number
+        expiresAt:
+          type: string
+          format: date-time
+      required:
+        - reservationId
+        - productId
+        - size
+        - quantity
+        - expiresAt
+    ReserveStockResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        reservations:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReservationResult"
+        expiresAt:
+          type: string
+          format: date-time
+      required:
+        - success
+        - reservations
+    ProductStock:
+      type: object
+      properties:
+        productId:
+          type: string
+        sizes:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              total:
+                type: number
+              reserved:
+                type: number
+              available:
+                type: number
+        totalStock:
+          type: number
+        totalReserved:
+          type: number
+        totalAvailable:
+          type: number
+      required:
+        - productId
+        - sizes
+        - totalStock
+        - totalReserved
+        - totalAvailable
+    AuditLog:
+      type: object
+      properties:
+        eventId:
+          type: string
+        productId:
+          type: string
+        size:
+          type: string
+        color:
+          type: string
+        quantity:
+          type: number
+        eventType:
+          type: string
+        reservationId:
+          type: string
+        orderId:
+          type: string
+        userId:
+          type: string
+        sessionId:
+          type: string
+        reason:
+          type: string
+        createdAt:
+          type: string
+          format: date-time

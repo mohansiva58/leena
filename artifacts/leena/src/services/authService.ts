@@ -21,14 +21,30 @@ const firebaseConfig = {
     measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
+// Check if Firebase config is valid before initializing
+const hasFirebaseConfig = firebaseConfig.apiKey && firebaseConfig.projectId;
+
+let app: ReturnType<typeof initializeApp> | null = null;
+let auth: ReturnType<typeof getAuth> | null = null;
+let googleProvider: GoogleAuthProvider | null = null;
+
+if (hasFirebaseConfig) {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    googleProvider = new GoogleAuthProvider();
+} else {
+    console.warn('Firebase config missing — auth features will be disabled until credentials are provided.');
+}
+
+const authError = (msg = 'Auth not configured') => {
+    console.error(msg);
+    throw new Error(msg);
+};
 
 export const authService = {
     // Email/Password Authentication
     signUpWithEmail: async (email: string, password: string) => {
+        if (!auth) return authError('Cannot sign up: Firebase auth not configured');
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const token = await userCredential.user.getIdToken();
         localStorage.setItem('firebaseToken', token);
@@ -36,6 +52,7 @@ export const authService = {
     },
 
     signInWithEmail: async (email: string, password: string) => {
+        if (!auth) return authError('Cannot sign in: Firebase auth not configured');
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const token = await userCredential.user.getIdToken();
         localStorage.setItem('firebaseToken', token);
@@ -44,6 +61,7 @@ export const authService = {
 
     // Google Authentication
     signInWithGoogle: async () => {
+        if (!auth || !googleProvider) return authError('Cannot sign in with Google: Firebase auth not configured');
         const userCredential = await signInWithPopup(auth, googleProvider);
         const token = await userCredential.user.getIdToken();
         localStorage.setItem('firebaseToken', token);
@@ -52,17 +70,23 @@ export const authService = {
 
     // Sign Out
     signOut: async () => {
-        await signOut(auth);
+        if (auth) {
+            await signOut(auth);
+        }
         localStorage.removeItem('firebaseToken');
     },
 
     // Get Current User
     getCurrentUser: (): User | null => {
-        return auth.currentUser;
+        return auth?.currentUser ?? null;
     },
 
     // Get ID Token
     getIdToken: async (): Promise<string | null> => {
+        if (!auth) {
+            const cached = localStorage.getItem('firebaseToken');
+            return cached;
+        }
         if (typeof auth.authStateReady === 'function') {
             await auth.authStateReady();
         }
@@ -75,6 +99,12 @@ export const authService = {
 
     // Auth State Observer
     onAuthStateChange: (callback: (user: User | null) => void) => {
+        if (!auth) {
+            // Simulate auth state with localStorage fallback
+            const cachedToken = localStorage.getItem('firebaseToken');
+            callback(null);
+            return () => {};
+        }
         return onAuthStateChanged(auth, async (user) => {
             if (user) {
                 const token = await user.getIdToken();

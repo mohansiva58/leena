@@ -10,7 +10,9 @@ const getSocketUrl = () => {
         return import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '').replace(/\/$/, '');
     }
 
-    return import.meta.env.DEV ? 'http://localhost:5000' : window.location.origin;
+    // In Replit (dev or production), the same origin serves both frontend and backend via the proxy.
+    // Socket.io connects directly to the origin root.
+    return window.location.origin;
 };
 
 const SOCKET_URL = getSocketUrl();

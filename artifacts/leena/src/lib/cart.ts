@@ -46,7 +46,10 @@ export const useCartStore = create<CartStore>()(
       reservationIds: [],
 
       addItem: (product, size, quantity = 1, variantImage, color) => {
-        if (product.stock !== undefined && product.stock <= 0) {
+        const sizeStock = product.sizeCounts?.[size] ?? 0;
+        const sizeReserved = product.sizeReservedCounts?.[size] ?? 0;
+        const available = Math.max(0, sizeStock - sizeReserved);
+        if (available <= 0) {
           return false;
         }
 
@@ -62,7 +65,7 @@ export const useCartStore = create<CartStore>()(
 
           const totalQuantity = existingItem ? existingItem.quantity + quantity : quantity;
 
-          if (product.stock !== undefined && totalQuantity > product.stock) {
+          if (totalQuantity > available) {
             return state;
           }
 
@@ -112,7 +115,11 @@ export const useCartStore = create<CartStore>()(
 
         if (!item) return false;
 
-        if (item.product.stock !== undefined && quantity > item.product.stock) {
+        const sizeStock = item.product.sizeCounts?.[size] ?? 0;
+        const sizeReserved = item.product.sizeReservedCounts?.[size] ?? 0;
+        const available = Math.max(0, sizeStock - sizeReserved);
+
+        if (quantity > available) {
           return false;
         }
 

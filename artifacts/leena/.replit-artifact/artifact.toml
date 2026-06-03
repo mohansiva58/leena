@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Leena - Premium Women's Fashion"
+version = "1.0.0"
+id = "artifacts/leena"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21695
+
+[services.development]
+run = "pnpm --filter @workspace/leena run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/leena", "run", "build" ]
+publicDir = "artifacts/leena/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21695"
+BASE_PATH = "/"

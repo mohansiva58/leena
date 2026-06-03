@@ -216,10 +216,13 @@ export function ProductCard({
             {(() => {
               const counts = product.sizeCounts || {};
               const reserved = product.sizeReservedCounts || {};
-              const available = Object.keys(counts).reduce(
-                (sum, size) => sum + Math.max(0, (counts[size] || 0) - (reserved[size] || 0)),
-                0
-              );
+              const hasSizeCounts = Object.keys(counts).length > 0;
+              const available = hasSizeCounts
+                ? Object.keys(counts).reduce(
+                    (sum, size) => sum + Math.max(0, (counts[size] || 0) - (reserved[size] || 0)),
+                    0
+                  )
+                : Math.max(0, (product.stock || 0));
               if (available <= 0) {
                 return (
                   <span className="text-[11px] font-semibold text-red-500 tracking-wider">
@@ -234,7 +237,11 @@ export function ProductCard({
                   </span>
                 );
               }
-              return null;
+              return (
+                <span className="text-[11px] font-medium text-green-600 tracking-wider">
+                  {available} IN STOCK
+                </span>
+              );
             })()}
           </div>
         </div>

@@ -7,57 +7,12 @@ interface FirebaseRestUser {
     photoUrl?: string;
 }
 
-interface FirebaseJwtPayload {
-    aud?: string;
-    email?: string;
-    exp?: number;
-    iss?: string;
-    name?: string;
-    picture?: string;
-    sub?: string;
-    user_id?: string;
-}
-
 const getFirebaseApiKey = (): string | undefined => {
     return process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY;
 };
 
 const getFirebaseProjectId = (): string | undefined => {
     return process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID;
-};
-
-const base64UrlDecode = (value: string): string => {
-    const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), '=');
-    return Buffer.from(padded, 'base64').toString('utf8');
-};
-
-const decodeFirebaseTokenForLocalDev = (token: string): admin.auth.DecodedIdToken => {
-    const projectId = getFirebaseProjectId();
-    if (!projectId) {
-        throw new Error('Firebase project ID missing');
-    }
-
-    const [, payloadPart] = token.split('.');
-    if (!payloadPart) {
-        throw new Error('Malformed Firebase token');
-    }
-
-    const payload = JSON.parse(base64UrlDecode(payloadPart)) as FirebaseJwtPayload;
-    const uid = payload.user_id || payload.sub;
-    const expectedIssuer = `https://securetoken.google.com/${projectId}`;
-    const now = Math.floor(Date.now() / 1000);
-
-    if (!uid || payload.aud !== projectId || payload.iss !== expectedIssuer || !payload.exp || payload.exp <= now) {
-        throw new Error('Firebase token claims do not match local project');
-    }
-
-    return {
-        uid,
-        email: payload.email,
-        name: payload.name,
-        picture: payload.picture,
-    } as unknown as admin.auth.DecodedIdToken;
 };
 
 const verifyTokenWithFirebaseRest = async (token: string): Promise<admin.auth.DecodedIdToken> => {
@@ -152,16 +107,11 @@ export const verifyFirebaseToken = async (token: string): Promise<admin.auth.Dec
         try {
             return await verifyTokenWithFirebaseRest(token);
         } catch (fallbackError) {
-            try {
-                return decodeFirebaseTokenForLocalDev(token);
-            } catch (decodeError) {
-                console.warn('Firebase token verification failed:', {
-                    admin: (error as Error).message,
-                    rest: (fallbackError as Error).message,
-                    localClaims: (decodeError as Error).message,
-                });
-                throw new Error('Invalid or expired token');
-            }
+            console.warn('Firebase token verification failed:', {
+                admin: (error as Error).message,
+                rest: (fallbackError as Error).message,
+            });
+            throw new Error('Invalid or expired token');
         }
     }
 };

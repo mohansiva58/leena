@@ -58,7 +58,10 @@ const ProductSchema = new mongoose.Schema(
 
 const Product = mongoose.model('Product', ProductSchema);
 
-const img = 'https://images.pexels.com/photos/7920188/pexels-photo-7920188.jpeg?cs=srgb&dl=pexels-sakshi-patwa-3335937-7920188.jpg&fm=jpg';
+const img1 = 'https://images.pexels.com/photos/7920188/pexels-photo-7920188.jpeg?cs=srgb&dl=pexels-sakshi-patwa-3335937-7920188.jpg&fm=jpg';
+const img2 = 'https://images.pexels.com/photos/6044266/pexels-photo-6044266.jpeg?cs=srgb&dl=pexels-anjulee-bhatt-1293766-6044266.jpg&fm=jpg';
+const img3 = 'https://images.pexels.com/photos/7319128/pexels-photo-7319128.jpeg?cs=srgb&dl=pexels-silk-world-8493096-7319128.jpg&fm=jpg';
+const img4 = 'https://images.pexels.com/photos/10556931/pexels-photo-10556931.jpeg?cs=srgb&dl=pexels-anna-khomutova-48113599-10556931.jpg&fm=jpg';
 
 const products = [
   {
@@ -66,8 +69,8 @@ const products = [
     name: 'Ruby Banarasi Silk Saree',
     price: 8499,
     originalPrice: 10999,
-    image: img,
-    images: [img],
+    image: img1,
+    images: [img1, img2],
     category: 'Sarees',
     sizes: ['Free Size'],
     sizeCounts: new Map([['Free Size', 10]]),
@@ -84,8 +87,8 @@ const products = [
     name: 'Elegant Floral Cotton Kurti',
     price: 2499,
     originalPrice: 3499,
-    image: img,
-    images: [img],
+    image: img2,
+    images: [img2, img3],
     category: 'Kurtis',
     sizes: ['XS', 'S', 'M', 'L', 'XL'],
     sizeCounts: new Map([
@@ -108,8 +111,8 @@ const products = [
     name: 'Pink Printed Cotton Saree',
     price: 4299,
     originalPrice: 5999,
-    image: img,
-    images: [img],
+    image: img3,
+    images: [img3, img4],
     category: 'Sarees',
     sizes: ['Free Size'],
     sizeCounts: new Map([['Free Size', 5]]),
@@ -126,8 +129,8 @@ const products = [
     name: 'Pastel Chikankari Kurti Set',
     price: 3199,
     originalPrice: 4299,
-    image: img,
-    images: [img],
+    image: img4,
+    images: [img4, img1],
     category: 'Kurtis',
     sizes: ['XS', 'S', 'M', 'L', 'XL'],
     sizeCounts: new Map([

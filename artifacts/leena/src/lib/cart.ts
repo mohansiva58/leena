@@ -6,7 +6,7 @@ export interface CartItem {
   product: Product;
   quantity: number;
   size: string;
-  color?: string; // Selected color name
+  color?: string;
   variantImage?: string;
 }
 
@@ -17,6 +17,7 @@ interface CartStore {
   addItem: (product: Product, size: string, quantity?: number, variantImage?: string, color?: string) => boolean;
   removeItem: (productId: string, size: string, variantImage?: string, color?: string) => void;
   updateQuantity: (productId: string, size: string, quantity: number, variantImage?: string, color?: string) => boolean;
+  updateItemStock: (productId: string, size: string, total: number, reserved: number) => void;
   clearCart: () => void;
   getTotalItems: () => number;
   getTotalPrice: () => number;
@@ -104,6 +105,11 @@ export const useCartStore = create<CartStore>()(
       },
 
       updateQuantity: (productId, size, quantity, variantImage, color) => {
+        if (quantity <= 0) {
+          get().removeItem(productId, size, variantImage, color);
+          return true;
+        }
+
         const state = get();
         const item = state.items.find(
           (item) =>
@@ -136,6 +142,26 @@ export const useCartStore = create<CartStore>()(
         return true;
       },
 
+      // Update the embedded product stock in cart items when real-time updates arrive.
+      // This keeps `addItem`/`updateQuantity` stock checks accurate even after socket events.
+      updateItemStock: (productId: string, size: string, total: number, reserved: number) => {
+        set((state) => ({
+          items: state.items.map((item) => {
+            if (getProductId(item.product) !== productId) return item;
+            const newSizeCounts = { ...(item.product.sizeCounts || {}), [size]: total };
+            const newSizeReservedCounts = { ...(item.product.sizeReservedCounts || {}), [size]: reserved };
+            return {
+              ...item,
+              product: {
+                ...item.product,
+                sizeCounts: newSizeCounts,
+                sizeReservedCounts: newSizeReservedCounts,
+              },
+            };
+          }),
+        }));
+      },
+
       clearCart: () => {
         set({ items: [], reservationIds: [] });
       },
@@ -160,9 +186,14 @@ export const useCartStore = create<CartStore>()(
       },
     }),
     {
-      name: 'sw_cart_v1',
+      name: 'sw_cart_v2',
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({ items: state.items }),
+      // Persist sessionId and reservationIds so checkout survives page refresh
+      partialize: (state) => ({
+        items: state.items,
+        sessionId: state.sessionId,
+        reservationIds: state.reservationIds,
+      }),
     }
   )
 );

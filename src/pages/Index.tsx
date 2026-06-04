@@ -6,7 +6,6 @@ import { HeroSection } from '@/components/HeroSection';
 import { SalesSection } from '@/components/SalesSection';
 import { ProductSection } from '@/components/ProductSection';
 import { CategorySection } from '@/components/CategorySection';
-import { TestimonialsSection } from '@/components/TestimonialsSection';
 import { Footer } from '@/components/Footer';
 import { Marquee } from '@/components/Marquee';
 
@@ -32,7 +31,7 @@ const Index = () => {
         <ProductSection title="Dinu's Collections" subtitle="Exclusive Designer Wear" category="Dinu's Collections" />
         <ProductSection title="Premium Collection" subtitle="Handcrafted Luxury" featured={true} />
         <ProductSection title="New Arrivals" subtitle="Latest Trends" category="Lehengas" />
-        <TestimonialsSection />
+       
       </main>
       <Footer />
     </div>

@@ -220,6 +220,10 @@ async function startWorker() {
         const httpServer = createServer(app);
         initIO(httpServer);
 
+        await StockReservationService.cleanupExpiredReservations().catch(err =>
+            console.error('Initial reservation cleanup failed:', err)
+        );
+
         const server = httpServer.listen(PORT, () => {
             console.log(`\n✅ Server running on port ${PORT}`);
             console.log(`📱 API Base URL: http://localhost:${PORT}/api`);

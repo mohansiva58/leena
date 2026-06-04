@@ -174,7 +174,7 @@ export default function ProductDetailPage() {
     return true;
   };
 
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlistStore();
   const isWishlisted = isInWishlist(id || '');
 
@@ -330,6 +330,14 @@ export default function ProductDetailPage() {
 
   /* BUY NOW */
 
+  const performBuyNow = () => {
+    useCartStore.getState().clearReservations();
+    const success = addSelectionsToCart();
+    if (success) {
+      navigate('/checkout');
+    }
+  };
+
   const handleBuyNow = async () => {
     if (totalAvailableStock <= 0) {
       toast.error('Out of stock');
@@ -346,34 +354,7 @@ export default function ProductDetailPage() {
       return;
     }
 
-    const loadingToastId = 'product-reservation';
-    toast.loading('Securing item...', { id: loadingToastId });
-    try {
-      const sessionId = useCartStore.getState().sessionId;
-      const reservationIds: string[] = [];
-
-      for (const selection of selections) {
-        const res = await productService.reserveStock({
-          productId: getProductId(product as Product),
-          size: selection.size,
-          quantity: selection.quantity,
-          sessionId,
-          userId: user?.uid
-        });
-        reservationIds.push(res.reservationId);
-      }
-
-      useCartStore.getState().setReservationIds(reservationIds);
-      
-      const success = addSelectionsToCart();
-      if (success) {
-        toast.success('Item secured for checkout!', { id: loadingToastId });
-        navigate('/checkout');
-      }
-    } catch (err: unknown) {
-      const error = err as { response?: { data?: { error?: string } } };
-      toast.error(error.response?.data?.error || 'Failed to reserve stock. It might be out of stock.', { id: loadingToastId });
-    }
+    performBuyNow();
   };
 
   /* WISHLIST */
@@ -1082,9 +1063,9 @@ export default function ProductDetailPage() {
           setShowAuthModal(false)
         }
         onSuccess={() => {
-            if (product && addSelectionsToCart()) {
-              navigate('/checkout');
-            }
+          if (product) {
+            performBuyNow();
+          }
         }}
       />
 

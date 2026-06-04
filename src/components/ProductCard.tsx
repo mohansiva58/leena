@@ -28,10 +28,13 @@ export function ProductCard({
   const isWishlisted = isInWishlist(productId);
 
   const isNew = product.newArrival || product.isNew;
-  const availableStock = typeof product.stock === 'number'
-    ? product.stock
-    : product.sizeCounts
-      ? Object.values(product.sizeCounts).reduce((sum, value) => sum + Number(value || 0), 0)
+  const availableStock = product.sizeCounts
+    ? Object.entries(product.sizeCounts).reduce((sum, [size, total]) => {
+      const reserved = product.sizeReservedCounts?.[size] || 0;
+      return sum + Math.max(0, Number(total || 0) - Number(reserved || 0));
+    }, 0)
+    : typeof product.stock === 'number'
+      ? product.stock
       : undefined;
 
   const discountPercentage =

@@ -51,6 +51,11 @@ export interface InventoryReservationResponse {
     ttlSeconds: number;
 }
 
+const isRouteNotFound = (error: unknown) => {
+    const status = (error as { response?: { status?: number } })?.response?.status;
+    return status === 404;
+};
+
 export const productService = {
     getAllProducts: async (filters?: ProductFilters): Promise<Product[]> => {
         const params = new URLSearchParams();
@@ -129,8 +134,44 @@ export const productService = {
         sessionId: string;
         idempotencyKey?: string;
     }): Promise<InventoryReservationResponse> => {
-        const response = await api.post('/inventory/reserve', data);
-        return response.data;
+        try {
+            const response = await api.post('/inventory/reserve', data);
+            return response.data;
+        } catch (error) {
+            if (!isRouteNotFound(error)) {
+                throw error;
+            }
+
+            const reservations: Array<{ reservationId: string; expiresAt?: string }> = [];
+            try {
+                for (const item of data.items) {
+                    const response = await api.post('/products/reserve', {
+                        ...item,
+                        sessionId: data.sessionId,
+                        idempotencyKey: `${data.idempotencyKey || data.sessionId}:${item.productId}:${item.size}`,
+                    });
+                    reservations.push(response.data);
+                }
+            } catch (fallbackError) {
+                await Promise.all(
+                    reservations.map((reservation) =>
+                        api.post('/products/release', { reservationId: reservation.reservationId }).catch(() => undefined)
+                    )
+                );
+                throw fallbackError;
+            }
+
+            const expiresAt = reservations
+                .map((reservation) => reservation.expiresAt)
+                .filter(Boolean)
+                .sort()[0] || new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+            return {
+                reservationIds: reservations.map((reservation) => reservation.reservationId),
+                expiresAt,
+                ttlSeconds: Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000)),
+            };
+        }
     },
 
     releaseStock: async (reservationId: string): Promise<void> => {
@@ -138,7 +179,19 @@ export const productService = {
     },
 
     releaseInventory: async (reservationIds: string[], reason?: string): Promise<void> => {
-        await api.post('/inventory/release', { reservationIds, reason });
+        try {
+            await api.post('/inventory/release', { reservationIds, reason });
+        } catch (error) {
+            if (!isRouteNotFound(error)) {
+                throw error;
+            }
+
+            await Promise.all(
+                reservationIds.map((reservationId) =>
+                    api.post('/products/release', { reservationId, reason })
+                )
+            );
+        }
     },
 
     getProductStock: async (productId: string) => {

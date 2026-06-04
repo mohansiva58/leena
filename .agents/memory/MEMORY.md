@@ -1,0 +1,3 @@
+- [Leena inventory system](leena-inventory.md) — MongoDB atomic $inc (no transactions); reservation TTL 15 min; completeReservation called by orderController, not frontend
+- [Leena real-time stock](leena-realtime-stock.md) — useRealTimeStock updates React Query cache + cart embedded product data + toasts; must be called in every page that shows stock
+- [Leena cart store](leena-cart.md) — key sw_cart_v2; persists items/sessionId/reservationIds; updateItemStock() keeps embedded product stock fresh

@@ -151,7 +151,9 @@ export default function ProductDetailPage() {
     }
 
     if (selectedSize && product.sizeCounts) {
-      const selectedRemaining = product.sizeCounts[selectedSize] ?? 0;
+      const sizeTotal = product.sizeCounts[selectedSize] ?? 0;
+      const sizeReserved = product.sizeReservedCounts?.[selectedSize] ?? 0;
+      const selectedRemaining = Math.max(0, sizeTotal - sizeReserved);
       if (selectedRemaining <= 0) {
         toast.error(`${selectedSize} is out of stock`);
         return false;

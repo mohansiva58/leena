@@ -1,14 +1,62 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Minus, Plus, Trash2, ShoppingCart, ArrowRight, ChevronLeft } from 'lucide-react';
+import { Minus, Plus, Trash2, ShoppingCart, ArrowRight, ChevronLeft, Zap } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { useCartStore, getProductId, getCartItemImage, getCartLineKey } from '@/lib/cart';
+import { useRealTimeStock } from '@/hooks/useRealTimeStock';
+
+// Sub-component: renders the live stock badge for one cart line, flashes when it changes
+function LiveStockBadge({ available, quantity, size }: { available: number; quantity: number; size: string }) {
+  const prevRef = useRef<number | null>(null);
+  const [flash, setFlash] = useState(false);
+
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    if (prevRef.current !== null && prevRef.current !== available) {
+      setFlash(true);
+      const t = setTimeout(() => setFlash(false), 900);
+      cleanup = () => clearTimeout(t);
+    }
+    prevRef.current = available;
+    return cleanup;
+  }, [available]);
+
+  if (available <= 0) {
+    return (
+      <motion.span
+        key={`oos-${size}`}
+        initial={{ scale: 1.15, backgroundColor: '#fef2f2' }}
+        animate={{ scale: 1, backgroundColor: 'transparent' }}
+        className={`inline-flex items-center gap-1 text-xs font-semibold text-red-600 mt-1 ${flash ? 'animate-pulse' : ''}`}
+      >
+        <Zap size={10} className="fill-red-600" />
+        Out of stock
+      </motion.span>
+    );
+  }
+  if (available < quantity) {
+    return (
+      <motion.span
+        key={`low-${size}-${available}`}
+        initial={{ scale: flash ? 1.12 : 1 }}
+        animate={{ scale: 1 }}
+        className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 mt-1"
+      >
+        <Zap size={10} className="fill-amber-600" />
+        Only {available} available
+      </motion.span>
+    );
+  }
+  return null;
+}
 
 export default function CartPage() {
+  useRealTimeStock();
   const { items, removeItem, updateQuantity, getTotalPrice, clearCart } = useCartStore();
-  const [promoCode, setPromoCode] = useState('');
+  const [promoCode] = useState('');
+  void promoCode;
 
   const subtotal = getTotalPrice();
   const total = subtotal;
@@ -51,6 +99,14 @@ export default function CartPage() {
     );
   }
 
+  // Check if any item is out of stock or has insufficient stock
+  const hasStockIssues = items.some((item) => {
+    const counts = item.product.sizeCounts || {};
+    const reserved = item.product.sizeReservedCounts || {};
+    const available = Math.max(0, (counts[item.size] || 0) - (reserved[item.size] || 0));
+    return available < item.quantity;
+  });
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -77,6 +133,21 @@ export default function CartPage() {
             Shopping Cart ({items.length})
           </motion.h1>
 
+          {/* Stock issues banner */}
+          <AnimatePresence>
+            {hasStockIssues && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-6 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 flex items-center gap-2"
+              >
+                <Zap size={16} className="fill-amber-500 text-amber-500 flex-shrink-0" />
+                Some items have stock changes. Review before checkout.
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Cart Items */}
             <div className="lg:col-span-2 space-y-4">
@@ -84,6 +155,11 @@ export default function CartPage() {
                 {items.map((item, index) => {
                   const productId = getProductId(item.product);
                   const itemImage = getCartItemImage(item);
+                  const counts = item.product.sizeCounts || {};
+                  const reserved = item.product.sizeReservedCounts || {};
+                  const available = Math.max(0, (counts[item.size] || 0) - (reserved[item.size] || 0));
+                  const isOutOfStock = available <= 0;
+
                   return (
                     <motion.div
                       key={getCartLineKey(productId, item.size, itemImage)}
@@ -91,12 +167,12 @@ export default function CartPage() {
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -20, height: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className="bg-card rounded-xl p-4 shadow-sm border border-border"
+                      className={`bg-card rounded-xl p-4 shadow-sm border transition-colors duration-300 ${isOutOfStock ? 'border-red-200 bg-red-50/30' : 'border-border'}`}
                     >
                       <div className="flex gap-4">
                         {/* Product Image */}
                         <Link to={`/product/${productId}`}>
-                          <div className="w-24 h-32 rounded-lg overflow-hidden bg-secondary flex-shrink-0">
+                          <div className={`w-24 h-32 rounded-lg overflow-hidden bg-secondary flex-shrink-0 transition-opacity duration-300 ${isOutOfStock ? 'opacity-50 grayscale' : ''}`}>
                             <img
                               src={itemImage}
                               alt={item.product.name}
@@ -126,27 +202,8 @@ export default function CartPage() {
                                 </p>
                               )}
 
-                              {/* Stock status */}
-                              {(() => {
-                                const counts = item.product.sizeCounts || {};
-                                const reserved = item.product.sizeReservedCounts || {};
-                                const available = Math.max(0, (counts[item.size] || 0) - (reserved[item.size] || 0));
-                                if (available <= 0) {
-                                  return (
-                                    <p className="text-xs text-destructive font-medium mt-1">
-                                      Out of stock
-                                    </p>
-                                  );
-                                }
-                                if (available < item.quantity) {
-                                  return (
-                                    <p className="text-xs text-amber-600 font-medium mt-1">
-                                      Only {available} available
-                                    </p>
-                                  );
-                                }
-                                return null;
-                              })()}
+                              {/* Live stock badge — re-animates when stock changes via socket */}
+                              <LiveStockBadge available={available} quantity={item.quantity} size={item.size} />
                             </div>
                             <motion.button
                               whileHover={{ scale: 1.05, backgroundColor: 'rgb(239, 68, 68)' }}
@@ -173,8 +230,9 @@ export default function CartPage() {
                               <span className="w-6 text-center text-sm font-medium">{item.quantity}</span>
                               <motion.button
                                 whileTap={{ scale: 0.9 }}
+                                disabled={item.quantity >= available}
                                 onClick={() => updateQuantity(productId, item.size, item.quantity + 1, itemImage, item.color)}
-                                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-primary/20 transition-colors"
+                                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-primary/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 <Plus size={14} />
                               </motion.button>
@@ -185,21 +243,6 @@ export default function CartPage() {
                               ₹{(item.product.price * item.quantity).toLocaleString()}
                             </p>
                           </div>
-
-                          {/* Stock warning below quantity */}
-                          {(() => {
-                            const counts = item.product.sizeCounts || {};
-                            const reserved = item.product.sizeReservedCounts || {};
-                            const available = Math.max(0, (counts[item.size] || 0) - (reserved[item.size] || 0));
-                            if (available < item.quantity && available > 0) {
-                              return (
-                                <p className="text-xs text-amber-600 font-medium mt-1">
-                                  Insufficient stock — only {available} available
-                                </p>
-                              );
-                            }
-                            return null;
-                          })()}
                         </div>
                       </div>
                     </motion.div>
@@ -224,26 +267,6 @@ export default function CartPage() {
             >
               <div className="bg-secondary rounded-2xl p-6 sticky top-28">
                 <h2 className="font-serif text-xl font-semibold mb-6">Order Summary</h2>
-
-                {/* Promo Code */}
-                {/* <div className="mb-6">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={promoCode}
-                      onChange={(e) => setPromoCode(e.target.value)}
-                      placeholder="Promo code"
-                      className="flex-1 px-4 py-3 bg-background rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                    />
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className="px-4 py-3 bg-foreground text-background rounded-lg font-medium text-sm"
-                    >
-                      Apply
-                    </motion.button>
-                  </div>
-                </div> */}
 
                 {/* Summary */}
                 <div className="space-y-3 text-sm">
@@ -271,11 +294,18 @@ export default function CartPage() {
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className="w-full btn-primary mt-6 py-4 font-semibold"
+                    disabled={hasStockIssues}
+                    className="w-full btn-primary mt-6 py-4 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    Proceed to Checkout
+                    {hasStockIssues ? 'Resolve Stock Issues First' : 'Proceed to Checkout'}
                   </motion.button>
                 </Link>
+
+                {hasStockIssues && (
+                  <p className="mt-3 text-xs text-amber-600 text-center">
+                    Remove out-of-stock items to continue
+                  </p>
+                )}
 
                 {/* Payment Icons */}
                 <div className="mt-6 text-center">

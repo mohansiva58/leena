@@ -45,7 +45,7 @@ const isValidIndianPhone = (phone: string) => /^[6-9]\d{9}$/.test(normalizeIndia
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { items, getTotalPrice, clearCart, removeItem } = useCartStore();
+  const { items, getTotalPrice, clearCart, removeItem, updateQuantity } = useCartStore();
   const { isAuthenticated, user } = useAuth();
   useRealTimeStock();
   const { initiatePayment } = useRazorpayCheckout();
@@ -193,8 +193,10 @@ export default function CheckoutPage() {
   // ^ Intentionally only depends on auth, not items — we want reserve to run
   //   once when entering checkout, and cleanup to run once when leaving.
 
-  // Reservation timer: show "Reserved for X:XX" and refresh every 5 min
+  // Reservation timer: count down, refresh TTL exactly once when 5 min remain
+  const reservationRefreshedRef = useRef(false);
   useEffect(() => {
+    reservationRefreshedRef.current = false; // reset on new reservation expiry
     if (!reservationExpiresAt) return;
 
     const interval = setInterval(() => {
@@ -207,13 +209,21 @@ export default function CheckoutPage() {
       const secs = Math.floor((remaining % 60000) / 1000);
       setReservationTimerText(`${mins}:${String(secs).padStart(2, '0')}`);
 
-      // Refresh reservations when 5 min remain
-      if (mins <= 5 && remaining > 0) {
+      // Refresh TTL exactly ONCE when 5 min remain (not every tick)
+      if (mins <= 5 && !reservationRefreshedRef.current) {
+        reservationRefreshedRef.current = true;
         const store = useCartStore.getState();
-        const ids = store.reservationIds || [];
         const sessionId = store.sessionId;
-        if (ids.length > 0 && sessionId) {
-          inventoryService.refreshAllReservations(sessionId).catch(() => {});
+        if (sessionId) {
+          inventoryService.refreshAllReservations(sessionId)
+            .then((r) => {
+              if (r.refreshed > 0) {
+                // Reset timer to 15 min from now
+                setReservationExpiresAt(new Date(Date.now() + 15 * 60 * 1000));
+                toast.success('Reservation extended by 15 minutes');
+              }
+            })
+            .catch(() => {});
         }
       }
     }, 1000);
@@ -324,23 +334,9 @@ export default function CheckoutPage() {
       toast.success('Item removed from cart');
       return;
     }
-
-    // Update cart - need to modify the quantity
-    // Since we don't have a direct update function, we'll remove and re-add
-    removeItem(productId, size, variantImage, color);
-    
-    const item = items.find(
-      i => getProductId(i.product) === productId && 
-        i.size === size && 
-        (variantImage ? getCartItemImage(i) === variantImage : true) &&
-        i.color === color
-    );
-
-    if (item) {
-      // Re-add with new quantity
-      for (let i = 0; i < newQuantity; i++) {
-        // Add back items - this is a workaround since cart store works with individual items
-      }
+    const success = updateQuantity(productId, size, newQuantity, variantImage, color);
+    if (!success) {
+      toast.error('Not enough stock available for that quantity');
     }
   };
 

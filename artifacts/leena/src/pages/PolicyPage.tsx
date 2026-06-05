@@ -228,7 +228,7 @@ export function ContactPage() {
 
                     <div className="text-muted-foreground mt-4">Careers</div>
                     <div className="mt-4">
-                      <p>Email: <a href="mailto:careers@leena.store" className="text-blue-600 hover:text-blue-700 hover:underline">careers@leena.store</a></p>
+                      <p>Email: <a href="mailto:leenabyalekhya@gmail.com" className="text-blue-600 hover:text-blue-700 hover:underline">leenabyalekhya@gmail.com</a></p>
                     </div>
 
                   </div>

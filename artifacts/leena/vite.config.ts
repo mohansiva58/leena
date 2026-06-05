@@ -25,6 +25,11 @@ if (!basePath) {
   );
 }
 
+const apiProxyTarget =
+  process.env.VITE_API_PROXY_TARGET ||
+  process.env.API_PROXY_TARGET ||
+  "http://localhost:5000";
+
 export default defineConfig({
   base: basePath,
   plugins: [
@@ -64,6 +69,19 @@ export default defineConfig({
     strictPort: true,
     host: "0.0.0.0",
     allowedHosts: true,
+    proxy: {
+      "/api": {
+        target: apiProxyTarget,
+        changeOrigin: true,
+        secure: false,
+      },
+      "/socket.io": {
+        target: apiProxyTarget,
+        changeOrigin: true,
+        secure: false,
+        ws: true,
+      },
+    },
     fs: {
       strict: true,
     },

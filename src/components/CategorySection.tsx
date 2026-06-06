@@ -75,15 +75,18 @@ const fallbackImage = (label: string) => {
 
 const categories = [
   // { label: 'Sarees', query: 'Sarees', image: modernCategoryImage('Sarees', 'MODERN DRAPES', '#02013f', '#7b1f53', '#c8a65a') },
-  { label: 'Lehengas', query: 'Lehengas', image: remoteImage('photo-1583398289726-55368e171384') },
-  { label: 'Anarkali', query: 'Anarkali', image: remoteImage('photo-1642956369651-ccc858c72de7') },
-  { label: 'Cotton Dresses', query: 'Cotton Dresses', image: remoteImage('photo-1595777457583-95e059d581b8') },
-  { label: 'Georgette Dresses', query: 'Georgette Dresses', image: remoteImage('photo-1583398289726-55368e171384') },
+
   // { label: 'Blouses', query: 'Blouses', image: modernCategoryImage('Blouses', 'STATEMENT CUTS', '#02013f', '#4d1b68', '#d9b3ff') },
   // { label: 'Bottom Wear', query: 'Bottom Wear', image: remoteImage('photo-1594633312681-425c7b97ccd1') },
+    { label: 'Frocks / Alines ', query: 'Frocks/Alines', image: remoteImage('photo-1496747611176-843222e1e57c') },
   { label: '2pc Set', query: '2pc Set', image: remoteImage('photo-1485968579580-b6d095142e6e') },
   { label: '3pc Set', query: '3pc Set', image: remoteImage('photo-1595777457583-95e059d581b8') },
-  { label: 'Frocks ', query: 'Frocks/Alines', image: remoteImage('photo-1496747611176-843222e1e57c') },
+    { label: 'Anarkali', query: 'Anarkali', image: remoteImage('photo-1642956369651-ccc858c72de7') },
+      { label: 'Cotton Dresses', query: 'Cotton Dresses', image: remoteImage('photo-1595777457583-95e059d581b8') },
+        { label: 'Lehengas', query: 'Lehengas', image: remoteImage('photo-1583398289726-55368e171384') },
+  { label: 'Georgette Dresses', query: 'Georgette Dresses', image: remoteImage('photo-1583398289726-55368e171384') },
+
+
   // { label: 'Handwork Dresses', query: 'Handwork Dresses', image: remoteImage('photo-1515886657613-9f3515b0c78f') },
 ];
 

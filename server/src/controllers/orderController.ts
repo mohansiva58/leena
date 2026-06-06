@@ -461,7 +461,7 @@ export const cancelOrder = async (req: AuthRequest, res: Response): Promise<void
             return;
         }
 
-        if (['shipped', 'delivered', 'cancelled'].includes(order.orderStatus)) {
+        if (['shipped', 'delivered', 'cancelled', 'returned'].includes(order.orderStatus)) {
             res.status(400).json({
                 error: `Cannot cancel order with status: ${order.orderStatus}`,
             });

@@ -39,7 +39,7 @@ export default function Footercard() {
                     </div>
 
                     {/* Quick Links */}
-                    <div>
+                    {/* <div>
                         <h4 className="font-serif text-lg font-semibold mb-4">Quick Links</h4>
                         <ul className="space-y-3">
                             {['New Arrivals', 'Bestsellers', 'Dresses', 'Tops', 'Sale'].map((item) => (
@@ -53,7 +53,7 @@ export default function Footercard() {
                                 </li>
                             ))}
                         </ul>
-                    </div>
+                    </div> */}
 
                     {/* Customer Care */}
                     <div>

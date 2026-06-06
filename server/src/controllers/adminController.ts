@@ -12,14 +12,15 @@ const ORDER_TRANSITIONS: Record<string, string[]> = {
     pending: ['confirmed', 'processing', 'cancelled'],
     confirmed: ['processing', 'cancelled'],
     processing: ['shipped', 'cancelled'],
-    shipped: ['delivered'],
-    delivered: [],
+    shipped: ['delivered', 'returned'],
+    delivered: ['returned'],
     cancelled: [],
+    returned: [],
 };
 
 export const getDashboardStats = async (_req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const [totalUsers, totalOrders, revenueResult, recentOrders, lowStockProducts, pendingOrders, totalProducts] =
+        const [totalUsers, totalOrders, revenueResult, cancelledResult, returnedResult, recentOrders, lowStockProducts, pendingOrders, totalProducts] =
             await Promise.all([
                 User.countDocuments(),
                 Order.countDocuments(),
@@ -36,6 +37,24 @@ export const getDashboardStats = async (_req: AuthRequest, res: Response): Promi
                         },
                     },
                 ]),
+                Order.aggregate([
+                    { $match: { orderStatus: 'cancelled' } },
+                    {
+                        $group: {
+                            _id: null,
+                            totalCancelledAmount: { $sum: '$total' },
+                        },
+                    },
+                ]),
+                Order.aggregate([
+                    { $match: { orderStatus: 'returned' } },
+                    {
+                        $group: {
+                            _id: null,
+                            totalReturnedAmount: { $sum: '$total' },
+                        },
+                    },
+                ]),
                 Order.find().sort({ createdAt: -1 }).limit(5).lean(),
                 Product.countDocuments({ stock: { $lte: 10 } }),
                 Order.countDocuments({ orderStatus: { $in: ['pending', 'confirmed', 'processing'] } }),
@@ -43,11 +62,15 @@ export const getDashboardStats = async (_req: AuthRequest, res: Response): Promi
             ]);
 
         const totalRevenue = revenueResult.length > 0 ? revenueResult[0].totalRevenue : 0;
+        const totalCancelledAmount = cancelledResult.length > 0 ? cancelledResult[0].totalCancelledAmount : 0;
+        const totalReturnedAmount = returnedResult.length > 0 ? returnedResult[0].totalReturnedAmount : 0;
 
         res.json({
             totalUsers,
             totalOrders,
             totalRevenue,
+            totalCancelledAmount,
+            totalReturnedAmount,
             recentOrders,
             lowStockProducts,
             pendingOrders,
@@ -119,6 +142,9 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response): Promis
         order.orderStatus = status as typeof order.orderStatus;
         if (status === 'delivered' && order.paymentMethod === 'cod') {
             order.paymentStatus = 'paid';
+        }
+        if (status === 'returned') {
+            order.returnedAt = new Date();
         }
         await order.save();
 

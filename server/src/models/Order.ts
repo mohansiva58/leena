@@ -36,11 +36,12 @@ export interface IOrder extends Document {
     razorpayOrderId?: string;
     razorpayPaymentId?: string;
     razorpaySignature?: string;
-    orderStatus: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+    orderStatus: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'returned';
     trackingNumber?: string;
     estimatedDelivery?: Date;
     deliveryDate?: Date;
     cancelledAt?: Date;
+    returnedAt?: Date;
     cancellationReason?: string;
     notes?: string;
     createdAt: Date;
@@ -91,7 +92,7 @@ const OrderSchema: Schema = new Schema(
         razorpaySignature: { type: String },
         orderStatus: {
             type: String,
-            enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'],
+            enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'],
             default: 'pending',
             required: true,
         },
@@ -99,6 +100,7 @@ const OrderSchema: Schema = new Schema(
         estimatedDelivery: { type: Date },
         deliveryDate: { type: Date },
         cancelledAt: { type: Date },
+        returnedAt: { type: Date },
         cancellationReason: { type: String },
         notes: { type: String },
     },

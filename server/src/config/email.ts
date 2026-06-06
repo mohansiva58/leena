@@ -253,6 +253,11 @@ export const sendOrderStatusUpdateEmail = async (data: OrderStatusEmailData): Pr
         statusIcon = '❌';
         statusColor = '#dc3545';
         break;
+      case 'returned':
+        statusText = 'RETURNED';
+        statusIcon = 'RETURNED';
+        statusColor = '#6f42c1';
+        break;
     }
 
     let extraDetails = '';

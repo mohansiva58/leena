@@ -40,6 +40,8 @@ interface DashboardStats {
   totalUsers: number;
   totalOrders: number;
   totalRevenue: number;
+  totalCancelledAmount?: number;
+  totalReturnedAmount?: number;
   recentOrders: Order[];
   lowStockProducts?: number;
   pendingOrders?: number;
@@ -88,9 +90,10 @@ const orderTransitions: Record<string, string[]> = {
   pending: ['confirmed', 'processing', 'cancelled'],
   confirmed: ['processing', 'cancelled'],
   processing: ['shipped', 'cancelled'],
-  shipped: ['delivered'],
-  delivered: [],
+  shipped: ['delivered', 'returned'],
+  delivered: ['returned'],
   cancelled: [],
+  returned: [],
 };
 
 const orderStatusLabels: Record<string, string> = {
@@ -100,6 +103,14 @@ const orderStatusLabels: Record<string, string> = {
   shipped: 'Shipped',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
+  returned: 'Returned',
+};
+
+const getOrderStatusBadgeClass = (status: string) => {
+  if (status === 'delivered') return 'bg-primary text-primary-foreground';
+  if (status === 'cancelled') return 'bg-destructive text-destructive-foreground';
+  if (status === 'returned') return 'bg-purple-100 text-purple-800';
+  return 'bg-secondary text-foreground';
 };
 
 const formatCurrency = (value: unknown) =>
@@ -570,11 +581,13 @@ export default function AdminPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
                 {[
                   { label: 'Total Revenue', value: stats ? formatCurrency(stats.totalRevenue) : '-', icon: IndianRupee, color: 'text-primary' },
+                  { label: 'Cancelled Amount', value: stats ? formatCurrency(stats.totalCancelledAmount || 0) : '-', icon: AlertCircle, color: 'text-destructive' },
+                  { label: 'Returned Amount', value: stats ? formatCurrency(stats.totalReturnedAmount || 0) : '-', icon: TrendingUp, color: 'text-primary' },
                   { label: 'Total Orders', value: stats ? stats.totalOrders : '-', icon: ShoppingCart, color: 'text-primary' },
                   { label: 'Total Users', value: stats ? stats.totalUsers : '-', icon: Users, color: 'text-primary' },
                   { label: 'Catalog products', value: stats ? (stats.totalProducts ?? products.length) : '-', icon: Package, color: 'text-primary' },
-                  { label: 'Low stock (≤10)', value: stats?.lowStockProducts ?? '-', icon: AlertCircle, color: 'text-amber-600' },
-                  { label: 'Active pipeline', value: stats?.pendingOrders ?? '-', icon: TrendingUp, color: 'text-primary' },
+                  // { label: 'Low stock (≤10)', value: stats?.lowStockProducts ?? '-', icon: AlertCircle, color: 'text-amber-600' },
+                  // { label: 'Active pipeline', value: stats?.pendingOrders ?? '-', icon: TrendingUp, color: 'text-primary' },
                 ].map((stat, index) => (
                   <motion.div
                     key={stat.label}
@@ -585,7 +598,7 @@ export default function AdminPage() {
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-                        <stat.icon size={24} className="text-primary" />
+                        <stat.icon size={24} className={stat.color} />
                       </div>
                     </div>
                     <h3 className="text-2xl font-bold text-foreground mb-1">{stat.value}</h3>
@@ -655,7 +668,7 @@ export default function AdminPage() {
                         </td>
                         <td className="px-6 py-4 font-medium">{formatCurrency(order.total)}</td>
                         <td className="px-6 py-4">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${order.orderStatus === 'delivered' ? 'bg-primary text-primary-foreground' : order.orderStatus === 'cancelled' ? 'bg-destructive text-destructive-foreground' : 'bg-secondary text-foreground'}`}>
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${getOrderStatusBadgeClass(order.orderStatus)}`}>
                             {(orderStatusLabels[order.orderStatus] || order.orderStatus || 'Unknown').toUpperCase()}
                           </span>
                         </td>
@@ -673,7 +686,7 @@ export default function AdminPage() {
                             className="text-sm border border-border rounded px-2 py-1 bg-background"
                             value={order.orderStatus}
                             onChange={(e) => handleUpdateOrderStatus(order.orderId, e.target.value)}
-                            disabled={order.orderStatus === 'cancelled' || order.orderStatus === 'delivered'}
+                            disabled={order.orderStatus === 'cancelled' || order.orderStatus === 'returned'}
                           >
                             {statusOptions.map((status) => (
                               <option key={status} value={status}>

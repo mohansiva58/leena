@@ -7,6 +7,7 @@ export interface ProductFilters {
     maxPrice?: number;
     search?: string;
     sort?: 'price-asc' | 'price-desc' | 'rating' | 'popular';
+    filter?: 'new' | 'bestseller' | null;
 }
 
 export interface PagedProductFilters extends ProductFilters {
@@ -64,6 +65,7 @@ export const productService = {
         if (filters?.maxPrice) params.append('maxPrice', filters.maxPrice.toString());
         if (filters?.search) params.append('search', filters.search);
         if (filters?.sort) params.append('sort', filters.sort);
+        if (filters?.filter) params.append('filter', filters.filter);
 
         const response = await api.get(`/products?${params.toString()}`);
         console.log('Fetched products:', response.data);

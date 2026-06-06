@@ -16,6 +16,7 @@ interface Product {
     stock?: number;
     setType?: string;
     isNew?: boolean;
+    newArrival?: boolean;
     isBestseller?: boolean;
     sizes?: string | string[];
     sizeCounts?: Record<string, number>;
@@ -45,7 +46,7 @@ interface ApiErrorResponse {
     message?: string;
 }
 
-const DEFAULT_SIZES = ['XS', 'S', 'M', 'L', 'XL'];
+const DEFAULT_SIZES = ['S', 'M', 'L', 'XL','XXL'];
 
 export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProductModalProps) {
     const [loading, setLoading] = useState(false);
@@ -84,7 +85,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                     description: product.description,
                     stock: product.stock?.toString() || String(Object.values(sizeCounts).reduce((sum, value) => sum + Number(value || 0), 0)),
                     setType: product.setType || '1 piece',
-                    isNew: product.isNew || false,
+                    isNew: product.newArrival || product.isNew || false,
                     isBestseller: product.isBestseller || false,
                     sizes: sizes.join(', '),
                 });

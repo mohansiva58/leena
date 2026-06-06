@@ -10,10 +10,11 @@ interface ProductSectionProps {
   title: string;
   subtitle: string;
   category?: string;
+  filter?: 'new' | 'bestseller';
   featured?: boolean;
 }
 
-export function ProductSection({ title, subtitle, category, featured }: ProductSectionProps) {
+export function ProductSection({ title, subtitle, category, filter, featured }: ProductSectionProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +27,7 @@ export function ProductSection({ title, subtitle, category, featured }: ProductS
         if (featured) {
           data = await productService.getFeaturedProducts();
         } else {
-          data = await productService.getAllProducts(category ? { category } : undefined);
+          data = await productService.getAllProducts({ ...(category ? { category } : {}), ...(filter ? { filter } : {}) });
         }
 
         if (!Array.isArray(data) || data.length === 0) {
@@ -46,7 +47,7 @@ export function ProductSection({ title, subtitle, category, featured }: ProductS
     };
 
     fetchProducts();
-  }, [category, featured, title]);
+  }, [category, featured, filter, title]);
 
   if (loading) {
     return (
@@ -101,7 +102,7 @@ export function ProductSection({ title, subtitle, category, featured }: ProductS
           viewport={{ once: true }}
           className="text-center"
         >
-          <Link to={category ? `/shop?category=${encodeURIComponent(category)}` : "/shop"}>
+          <Link to={filter ? `/shop?filter=${filter}` : category ? `/shop?category=${encodeURIComponent(category)}` : "/shop"}>
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}

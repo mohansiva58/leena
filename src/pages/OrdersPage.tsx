@@ -33,7 +33,7 @@ interface Order {
     orderId: string;
     items: OrderItem[];
     total: number;
-    orderStatus: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+    orderStatus: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'returned';
     createdAt: string;
     shippingAddress: {
         fullName: string;
@@ -53,6 +53,7 @@ const statusSteps = {
     shipped: 3,
     delivered: 4,
     cancelled: 0,
+    returned: 0,
 };
 
 const stepIcons = {

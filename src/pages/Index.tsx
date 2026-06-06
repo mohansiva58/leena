@@ -27,10 +27,10 @@ const Index = () => {
         <Marquee />
         <CategorySection />
         <SalesSection />
-        <ProductSection title="Best Selling" subtitle="Most Loved Pieces" category="Sarees" />
-        <ProductSection title="Dinu's Collections" subtitle="Exclusive Designer Wear" category="Dinu's Collections" />
-        <ProductSection title="Premium Collection" subtitle="Handcrafted Luxury" featured={true} />
-        <ProductSection title="New Arrivals" subtitle="Latest Trends" category="Lehengas" />
+        <ProductSection title="Best Selling" subtitle="Most Loved Pieces" filter="bestseller" />
+        {/* <ProductSection title="Dinu's Collections" subtitle="Exclusive Designer Wear" category="Dinu's Collections" /> */}
+        {/* <ProductSection title="Premium Collection" subtitle="Handcrafted Luxury" featured={true} /> */}
+        <ProductSection title="New Arrivals" subtitle="Latest Trends" filter="new" />
        
       </main>
       <Footer />

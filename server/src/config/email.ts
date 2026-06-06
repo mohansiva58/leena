@@ -149,7 +149,7 @@ export const sendOrderConfirmationEmail = async (data: OrderEmailData): Promise<
               </ul>
             </div>
 
-            <p style="font-size: 14px; color: #666; margin-top: 30px;">If you have any questions about your order, please contact us at . support@leena.com</p>
+            <p style="font-size: 14px; color: #666; margin-top: 30px;">If you have any questions about your order, please contact us at . leenabyalekhya@gmail.com.com</p>
             
             <p style="font-size: 16px; margin-top: 30px;">Thank you for choosing Leena!</p>
             <p style="font-size: 14px; color: #666;">Best regards,<br>Leena Team</p>

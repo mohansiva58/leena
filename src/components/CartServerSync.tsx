@@ -2,31 +2,8 @@ import { useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCartStore, getProductId, getCartItemImage } from '@/lib/cart';
 import { cartService } from '@/services/cartService';
-import type { Product } from '@/lib/products';
+import { applyServerCartToLocal, getCartSyncSignalKey, refreshLocalCartFromServer } from '@/lib/cartServerSync';
 import axios from 'axios';
-
-function serverLineToProduct(line: {
-  productId: string;
-  name: string;
-  price: number;
-  image: string;
-  variantImage?: string;
-  color?: string;
-}): Product {
-  return {
-    productId: line.productId,
-    id: line.productId,
-    name: line.name,
-    price: line.price,
-    image: line.image,
-    category: 'Catalog',
-    sizes: ['Default'],
-    description: '',
-    rating: 0,
-    reviews: 0,
-    stock: 99999,
-  };
-}
 
 /**
  * When user signs in: prefer server cart if non-empty; otherwise push local cart to API.
@@ -50,10 +27,7 @@ export function CartServerSync() {
         const localItems = useCartStore.getState().items;
 
         if (serverCart.items?.length) {
-          useCartStore.getState().clearCart();
-          for (const it of serverCart.items) {
-            useCartStore.getState().addItem(serverLineToProduct(it), it.size, it.quantity, it.variantImage || it.image, it.color);
-          }
+          applyServerCartToLocal(serverCart);
         } else if (localItems.length) {
           for (const row of localItems) {
             const pid = getProductId(row.product);
@@ -69,10 +43,7 @@ export function CartServerSync() {
           }
           const refreshed = await cartService.getCart();
           if (refreshed.items?.length) {
-            useCartStore.getState().clearCart();
-            for (const it of refreshed.items) {
-              useCartStore.getState().addItem(serverLineToProduct(it), it.size, it.quantity, it.variantImage || it.image, it.color);
-            }
+            applyServerCartToLocal(refreshed);
           }
         }
         ranForUid.current = user.uid;
@@ -80,6 +51,49 @@ export function CartServerSync() {
         console.warn('Cart server sync skipped:', e);
       }
     })();
+  }, [isAuthenticated, loading, user?.uid]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user?.uid || loading) return;
+
+    let refreshing = false;
+    const refresh = async () => {
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        await refreshLocalCartFromServer();
+      } catch (error) {
+        console.warn('Cart refresh skipped:', error);
+      } finally {
+        refreshing = false;
+      }
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === getCartSyncSignalKey()) {
+        refresh();
+      }
+    };
+
+    const handleFocus = () => {
+      refresh();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refresh();
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [isAuthenticated, loading, user?.uid]);
 
   return null;

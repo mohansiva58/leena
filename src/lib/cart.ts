@@ -38,6 +38,16 @@ export const getCartLineKey = (productId: string, size: string, variantImage?: s
   return `${productId}-${size}-${color || 'default'}-${variantImage || 'default'}`;
 };
 
+const getAvailableStockForSize = (product: Product, size: string): number | undefined => {
+  if (product.sizeCounts && Object.prototype.hasOwnProperty.call(product.sizeCounts, size)) {
+    const total = Number(product.sizeCounts[size] || 0);
+    const reserved = Number(product.sizeReservedCounts?.[size] || 0);
+    return Math.max(0, total - reserved);
+  }
+
+  return typeof product.stock === 'number' ? Math.max(0, product.stock) : undefined;
+};
+
 export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
@@ -46,7 +56,8 @@ export const useCartStore = create<CartStore>()(
       reservationIds: [],
 
       addItem: (product, size, quantity = 1, variantImage, color) => {
-        if (product.stock !== undefined && product.stock <= 0) {
+        const availableForSize = getAvailableStockForSize(product, size);
+        if (availableForSize !== undefined && availableForSize <= 0) {
           return false;
         }
 
@@ -62,7 +73,7 @@ export const useCartStore = create<CartStore>()(
 
           const totalQuantity = existingItem ? existingItem.quantity + quantity : quantity;
 
-          if (product.stock !== undefined && totalQuantity > product.stock) {
+          if (availableForSize !== undefined && totalQuantity > availableForSize) {
             return state;
           }
 
@@ -112,7 +123,8 @@ export const useCartStore = create<CartStore>()(
 
         if (!item) return false;
 
-        if (item.product.stock !== undefined && quantity > item.product.stock) {
+        const availableForSize = getAvailableStockForSize(item.product, size);
+        if (availableForSize !== undefined && quantity > availableForSize) {
           return false;
         }
 

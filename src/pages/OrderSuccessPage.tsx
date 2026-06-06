@@ -225,13 +225,13 @@ export default function OrderSuccessPage() {
                                             <List size={16} />
                                             My Orders
                                         </Link>
-                                        <button 
+                                        {/* <button 
                                             onClick={handleDownloadInvoice}
                                             className="flex items-center justify-center gap-2 py-3 bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-2xl font-semibold text-sm transition-all"
                                         >
                                             <Download size={16} />
                                             Invoice
-                                        </button>
+                                        </button> */}
                                     </div>
                                 </div>
                             </div>

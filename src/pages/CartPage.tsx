@@ -5,10 +5,64 @@ import { Minus, Plus, Trash2, ShoppingCart, ArrowRight, ChevronLeft } from 'luci
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { useCartStore, getProductId, getCartItemImage, getCartLineKey } from '@/lib/cart';
+import { useAuth } from '@/hooks/useAuth';
+import { cartService } from '@/services/cartService';
+import { applyServerCartToLocal, notifyCartChangedAcrossTabs } from '@/lib/cartServerSync';
+import { toast } from 'sonner';
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, getTotalPrice, clearCart } = useCartStore();
+  const { isAuthenticated } = useAuth();
   const [promoCode, setPromoCode] = useState('');
+
+  const syncCartAction = async (action: () => Promise<unknown>) => {
+    try {
+      const cart = await action();
+      if (cart && typeof cart === 'object' && 'items' in cart) {
+        applyServerCartToLocal(cart as Awaited<ReturnType<typeof cartService.getCart>>);
+      }
+      notifyCartChangedAcrossTabs();
+      return true;
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || 'Failed to update cart');
+      return false;
+    }
+  };
+
+  const handleRemoveItem = async (productId: string, size: string, variantImage?: string, color?: string) => {
+    if (!isAuthenticated) {
+      removeItem(productId, size, variantImage, color);
+      return;
+    }
+
+    await syncCartAction(() => cartService.removeFromCart(productId, size, color, variantImage));
+  };
+
+  const handleUpdateQuantity = async (productId: string, size: string, quantity: number, variantImage?: string, color?: string) => {
+    if (!isAuthenticated) {
+      updateQuantity(productId, size, quantity, variantImage, color);
+      return;
+    }
+
+    await syncCartAction(() => cartService.updateCartItem(productId, size, Math.max(1, quantity), color, variantImage));
+  };
+
+  const handleClearCart = async () => {
+    if (!isAuthenticated) {
+      clearCart();
+      return;
+    }
+
+    const success = await syncCartAction(async () => {
+      await cartService.clearCart();
+      return { items: [] };
+    });
+
+    if (success) {
+      clearCart();
+    }
+  };
 
   const subtotal = getTotalPrice();
   const total = subtotal;
@@ -130,7 +184,7 @@ export default function CartPage() {
                             <motion.button
                               whileHover={{ scale: 1.05, backgroundColor: 'rgb(239, 68, 68)' }}
                               whileTap={{ scale: 0.95 }}
-                              onClick={() => removeItem(productId, item.size, itemImage, item.color)}
+                              onClick={() => handleRemoveItem(productId, item.size, itemImage, item.color)}
                               className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all duration-200 font-medium text-sm whitespace-nowrap flex-shrink-0"
                               title="Remove from cart"
                             >
@@ -144,7 +198,7 @@ export default function CartPage() {
                             <div className="flex items-center gap-2 bg-secondary rounded-full p-1">
                               <motion.button
                                 whileTap={{ scale: 0.9 }}
-                                onClick={() => updateQuantity(productId, item.size, item.quantity - 1, itemImage, item.color)}
+                                onClick={() => handleUpdateQuantity(productId, item.size, item.quantity - 1, itemImage, item.color)}
                                 className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-primary/20 transition-colors"
                               >
                                 <Minus size={14} />
@@ -152,7 +206,7 @@ export default function CartPage() {
                               <span className="w-6 text-center text-sm font-medium">{item.quantity}</span>
                               <motion.button
                                 whileTap={{ scale: 0.9 }}
-                                onClick={() => updateQuantity(productId, item.size, item.quantity + 1, itemImage, item.color)}
+                                onClick={() => handleUpdateQuantity(productId, item.size, item.quantity + 1, itemImage, item.color)}
                                 className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-primary/20 transition-colors"
                               >
                                 <Plus size={14} />
@@ -173,7 +227,7 @@ export default function CartPage() {
 
               {/* Clear Cart */}
               <button
-                onClick={clearCart}
+                onClick={handleClearCart}
                 className="text-sm text-muted-foreground hover:text-destructive transition-colors"
               >
                 Clear Cart

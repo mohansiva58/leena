@@ -62,15 +62,20 @@ export const cartService = {
         size: string,
         quantity: number,
         color?: string,
+        variantImage?: string,
         sizeQuantities?: SizeQuantityPayload,
         sizeCounts?: SizeQuantityPayload
     ): Promise<Cart> => {
-        const response = await api.put('/cart/update', { productId, size, quantity, color, sizeQuantities, sizeCounts });
+        const response = await api.put('/cart/update', { productId, size, quantity, color, variantImage, sizeQuantities, sizeCounts });
         return response.data;
     },
 
-    removeFromCart: async (productId: string, size: string, color?: string): Promise<Cart> => {
-        const url = `/cart/remove/${productId}/${size}` + (color ? `?color=${encodeURIComponent(color)}` : '');
+    removeFromCart: async (productId: string, size: string, color?: string, variantImage?: string): Promise<Cart> => {
+        const params = new URLSearchParams();
+        if (color) params.set('color', color);
+        if (variantImage) params.set('variantImage', variantImage);
+        const query = params.toString();
+        const url = `/cart/remove/${productId}/${size}${query ? `?${query}` : ''}`;
         const response = await api.delete(url);
         return response.data;
     },

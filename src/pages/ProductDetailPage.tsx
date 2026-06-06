@@ -33,6 +33,8 @@ import { useRealTimeStock } from '@/hooks/useRealTimeStock';
 
 import { productService } from '@/services/productService';
 import { saleService } from '@/services/saleService';
+import { cartService } from '@/services/cartService';
+import { applyServerCartToLocal, notifyCartChangedAcrossTabs } from '@/lib/cartServerSync';
 import { Skeleton } from '@/components/ui/skeleton';
 
 import logo from '@/assets/logo.png';
@@ -121,7 +123,7 @@ export default function ProductDetailPage() {
     return [{ size: selectedSize, quantity }];
   };
 
-  const addSelectionsToCart = () => {
+  const addSelectionsToCart = async () => {
     if (!product) return false;
 
     const selections = getSelectedSizeEntries();
@@ -134,25 +136,54 @@ export default function ProductDetailPage() {
       (c) => c.colorName === selectedColor
     );
     const cartImage = selectedImage || activeColorVariant?.image?.url || product.image;
-    const totalRequested = selections.reduce((sum, entry) => sum + entry.quantity, 0);
     const productId = getProductId(product);
-    const existingQuantity = useCartStore.getState().items.reduce((sum, item) => {
-      return getProductId(item.product) === productId &&
-        item.color === (selectedColor || undefined) &&
-        getCartItemImage(item) === cartImage
-        ? sum + item.quantity
-        : sum;
-    }, 0);
 
-    if (product.stock !== undefined && existingQuantity + totalRequested > product.stock) {
-      toast.error(`Only ${product.stock} total item(s) available in stock.`);
-      return false;
+    for (const selection of selections) {
+      const existingQuantity = useCartStore.getState().items.reduce((sum, item) => {
+        return getProductId(item.product) === productId &&
+          item.size === selection.size &&
+          item.color === (selectedColor || undefined) &&
+          getCartItemImage(item) === cartImage
+          ? sum + item.quantity
+          : sum;
+      }, 0);
+
+      const availableForSize = product.sizeCounts && Object.prototype.hasOwnProperty.call(product.sizeCounts, selection.size)
+        ? Math.max(0, Number(product.sizeCounts[selection.size] || 0) - Number(product.sizeReservedCounts?.[selection.size] || 0))
+        : product.stock;
+
+      if (availableForSize !== undefined && availableForSize <= 0) {
+        toast.error(`${selection.size} is out of stock`);
+        return false;
+      }
+
+      if (availableForSize !== undefined && existingQuantity + selection.quantity > availableForSize) {
+        const remaining = Math.max(0, availableForSize - existingQuantity);
+        if (remaining === 0) {
+          toast.error(`You already have all available ${selection.size} item(s) in your cart.`);
+        } else {
+          toast.error(`Only ${remaining} more item(s) available for size ${selection.size}.`);
+        }
+        return false;
+      }
     }
 
-    if (selectedSize && product.sizeCounts) {
-      const selectedRemaining = product.sizeCounts[selectedSize] ?? 0;
-      if (selectedRemaining <= 0) {
-        toast.error(`${selectedSize} is out of stock`);
+    if (isAuthenticated) {
+      try {
+        const cart = await cartService.addToCart(
+          productId,
+          selections[0].size,
+          selections[0].quantity,
+          cartImage,
+          selectedColor || undefined,
+          selections
+        );
+        applyServerCartToLocal(cart);
+        notifyCartChangedAcrossTabs();
+        return true;
+      } catch (error: unknown) {
+        const apiError = error as { response?: { data?: { error?: string } } };
+        toast.error(apiError.response?.data?.error || 'Failed to add item to cart');
         return false;
       }
     }
@@ -315,13 +346,13 @@ export default function ProductDetailPage() {
 
   /* ADD TO CART */
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (totalAvailableStock <= 0) {
       toast.error('Out of stock');
       return;
     }
 
-    const success = addSelectionsToCart();
+    const success = await addSelectionsToCart();
 
     if (success) {
       toast.success('Added to cart');
@@ -330,9 +361,9 @@ export default function ProductDetailPage() {
 
   /* BUY NOW */
 
-  const performBuyNow = () => {
+  const performBuyNow = async () => {
     useCartStore.getState().clearReservations();
-    const success = addSelectionsToCart();
+    const success = await addSelectionsToCart();
     if (success) {
       navigate('/checkout');
     }
@@ -354,7 +385,7 @@ export default function ProductDetailPage() {
       return;
     }
 
-    performBuyNow();
+    await performBuyNow();
   };
 
   /* WISHLIST */

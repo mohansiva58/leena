@@ -53,6 +53,26 @@ const findCartCatalogItem = async (productId: string) => {
     return null;
 };
 
+const mapLikeToRecord = (value: unknown): Record<string, number> | undefined => {
+    if (!value) return undefined;
+    if (value instanceof Map) return Object.fromEntries(value);
+    if (typeof value === 'object') return value as Record<string, number>;
+    return undefined;
+};
+
+const getAvailableForSize = (item: { stock?: number; sizeCounts?: unknown; sizeReservedCounts?: unknown }, size: string): number => {
+    const sizeCounts = mapLikeToRecord(item.sizeCounts);
+    const sizeReservedCounts = mapLikeToRecord(item.sizeReservedCounts);
+
+    if (sizeCounts && Object.prototype.hasOwnProperty.call(sizeCounts, size)) {
+        const total = Number(sizeCounts[size] || 0);
+        const reserved = Number(sizeReservedCounts?.[size] || 0);
+        return Math.max(0, total - reserved);
+    }
+
+    return Math.max(0, Number(item.stock || 0));
+};
+
 const removeMissingCartItems = async (cart: ICart | null): Promise<ICart | null> => {
     if (!cart?.items?.length) return cart;
 
@@ -120,22 +140,6 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<void> 
 
         const lineImage = resolveVariantImage(product, variantImage);
 
-        const requestedQuantity = sizeItems.reduce((sum, item) => sum + item.quantity, 0);
-
-        // Check if product is in stock
-        if (product.stock <= 0) {
-            res.status(400).json({ error: 'This product is out of stock' });
-            return;
-        }
-
-        // Check if requested quantity is available
-        if (requestedQuantity > product.stock) {
-            res.status(400).json({ 
-                error: `Only ${product.stock} item(s) available in stock` 
-            });
-            return;
-        }
-
         // Get or create cart
         let cart = await Cart.findOne({ userId });
         if (!cart) {
@@ -143,6 +147,7 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<void> 
         }
 
         for (const sizeItem of sizeItems) {
+            const availableForSize = getAvailableForSize(product, sizeItem.size);
             const existingItemIndex = cart.items.findIndex(
                 (item) => item.productId === canonicalId && item.size === sizeItem.size && item.image === lineImage && item.color === color
             );
@@ -151,9 +156,14 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<void> 
                 ? cart.items[existingItemIndex].quantity + sizeItem.quantity
                 : sizeItem.quantity;
 
-            if (totalQuantity > product.stock) {
+            if (availableForSize <= 0) {
+                res.status(400).json({ error: `${sizeItem.size} is out of stock` });
+                return;
+            }
+
+            if (totalQuantity > availableForSize) {
                 res.status(400).json({
-                    error: `Only ${product.stock} total item(s) available in stock for size ${sizeItem.size}. You already have ${existingItemIndex > -1 ? cart.items[existingItemIndex].quantity : 0} in your cart.`,
+                    error: `Only ${availableForSize} item(s) available for size ${sizeItem.size}. You already have ${existingItemIndex > -1 ? cart.items[existingItemIndex].quantity : 0} in your cart.`,
                 });
                 return;
             }
@@ -191,7 +201,7 @@ export const updateCartItem = async (req: AuthRequest, res: Response): Promise<v
         const userId = req.user?.uid;
         if (!userId) { res.status(401).json({ error: 'Unauthorized' }); return; }
 
-        const { productId, size, quantity, color, sizeQuantities, sizeCounts } = req.body;
+        const { productId, size, quantity, color, variantImage, sizeQuantities, sizeCounts } = req.body;
 
         if (!productId) {
             res.status(400).json({ error: 'Product ID is required' });
@@ -212,19 +222,6 @@ export const updateCartItem = async (req: AuthRequest, res: Response): Promise<v
         }
         const { item: product, canonicalId } = resolved;
 
-        if (product.stock <= 0) {
-            res.status(400).json({ error: 'This product is out of stock' });
-            return;
-        }
-
-        const requestedQuantity = sizeItems.reduce((sum, item) => sum + item.quantity, 0);
-        if (requestedQuantity > product.stock) {
-            res.status(400).json({ 
-                error: `Only ${product.stock} item(s) available in stock` 
-            });
-            return;
-        }
-
         const cart = await Cart.findOne({ userId });
         if (!cart) {
             res.status(404).json({ error: 'Cart not found' });
@@ -236,8 +233,23 @@ export const updateCartItem = async (req: AuthRequest, res: Response): Promise<v
             return;
         }
 
+        const availableForSize = getAvailableForSize(product, sizeItems[0].size);
+        if (availableForSize <= 0) {
+            res.status(400).json({ error: `${sizeItems[0].size} is out of stock` });
+            return;
+        }
+
+        if (sizeItems[0].quantity > availableForSize) {
+            res.status(400).json({ error: `Only ${availableForSize} item(s) available for size ${sizeItems[0].size}` });
+            return;
+        }
+
         const itemIndex = cart.items.findIndex(
-            (item) => item.productId === canonicalId && item.size === sizeItems[0].size && (color === undefined || item.color === color)
+            (item) =>
+                item.productId === canonicalId &&
+                item.size === sizeItems[0].size &&
+                (color === undefined || item.color === color) &&
+                (variantImage === undefined || item.image === variantImage || item.variantImage === variantImage)
         );
 
         if (itemIndex === -1) {
@@ -263,12 +275,19 @@ export const removeFromCart = async (req: AuthRequest, res: Response): Promise<v
 
         const { productId, size } = req.params;
         const color = req.query.color as string | undefined;
+        const variantImage = req.query.variantImage as string | undefined;
 
         const cart = await Cart.findOne({ userId });
         if (!cart) { res.status(404).json({ error: 'Cart not found' }); return; }
 
         cart.items = cart.items.filter(
-            (item) => !(item.productId === productId && item.size === size && (!color || item.color === color))
+            (item) =>
+                !(
+                    item.productId === productId &&
+                    item.size === size &&
+                    (!color || item.color === color) &&
+                    (!variantImage || item.image === variantImage || item.variantImage === variantImage)
+                )
         );
         await cart.save();
 

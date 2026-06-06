@@ -20,6 +20,7 @@ import { saleService } from '@/services/saleService';
 import { indianStates } from '@/lib/indianStates';
 import { toast } from 'sonner';
 import axios, { AxiosError } from 'axios';
+import { notifyCartChangedAcrossTabs } from '@/lib/cartServerSync';
 
 import { API_BASE_URL } from '@/services/api';
 
@@ -528,6 +529,7 @@ export default function CheckoutPage() {
             paymentSucceeded.current = true;
             // Clear the cart
             clearCart();
+            notifyCartChangedAcrossTabs();
             // Navigate to the dedicated order success page with full details
             navigate('/order-success', {
               replace: true,
@@ -546,6 +548,7 @@ export default function CheckoutPage() {
         // COD path
         const orderRes = await orderService.createOrder(orderData);
         clearCart();
+        notifyCartChangedAcrossTabs();
         navigate('/order-success', {
           replace: true,
           state: {

@@ -20,7 +20,7 @@ export default function Footercard() {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 whileHover={{ scale: 1.1, y: -2 }}
-                                className="w-10 h-10 bg-[#02013f] rounded-full flex items-center justify-center text-white hover-glow transition-shadow"
+                                className="w-10 h-10 rounded-full flex items-center justify-center text-white shadow-sm transition-shadow hover:shadow-lg bg-[radial-gradient(circle_at_30%_110%,#fdf497_0%,#fdf497_12%,#fd5949_34%,#d6249f_58%,#285AEB_100%)]"
                             >
                                 <Instagram size={18} />
                             </motion.a>

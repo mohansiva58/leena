@@ -7,9 +7,34 @@ import Confetti from 'react-confetti';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
+interface OrderSuccessItem {
+    name: string;
+    image?: string;
+    size: string;
+    color?: string;
+    quantity: number;
+    price: number;
+}
+
+interface OrderSuccessData {
+    orderId: string;
+    items: OrderSuccessItem[];
+    subtotal?: number;
+    discount?: number;
+    total: number;
+    shippingAddress: {
+        fullName: string;
+        address: string;
+        city: string;
+        state: string;
+        pincode: string;
+        phone: string;
+    };
+}
+
 export default function OrderSuccessPage() {
     const location = useLocation();
-    const orderData = location.state?.order;
+    const orderData = (location.state as { order?: OrderSuccessData } | null)?.order;
     const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
 
     useEffect(() => {
@@ -121,7 +146,7 @@ export default function OrderSuccessPage() {
                                     Your Curated Selection
                                 </h3>
                                 <div className="space-y-4 max-h-[360px] overflow-y-auto pr-2 custom-scrollbar">
-                                    {orderData.items.map((item: any, idx: number) => (
+                                    {orderData.items.map((item: OrderSuccessItem, idx: number) => (
                                         <motion.div 
                                             initial={{ opacity: 0, x: -10 }}
                                             animate={{ opacity: 1, x: 0 }}

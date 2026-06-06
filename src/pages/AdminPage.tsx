@@ -116,6 +116,19 @@ const getOrderStatusBadgeClass = (status: string) => {
 const formatCurrency = (value: unknown) =>
   `₹${Number(value || 0).toLocaleString('en-IN')}`;
 
+interface ApiErrorResponse {
+  response?: {
+    data?: {
+      error?: string;
+    };
+  };
+}
+
+const getApiErrorMessage = (error: unknown, fallback: string) => {
+  const apiError = error as ApiErrorResponse;
+  return apiError.response?.data?.error || fallback;
+};
+
 // Interface for Product from API
 interface Product {
   _id: string;
@@ -302,9 +315,9 @@ export default function AdminPage() {
         expiryDate: ''
       });
       fetchCoupons();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Create coupon error:', error);
-      toast.error(error.response?.data?.error || 'Failed to create coupon');
+      toast.error(getApiErrorMessage(error, 'Failed to create coupon'));
     } finally {
       setLoading(false);
     }
@@ -328,9 +341,9 @@ export default function AdminPage() {
       toast.success(`Order status updated to ${newStatus}`);
       fetchOrders(); // Refresh
       fetchStats();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Update status error:', error);
-      toast.error(error.response?.data?.error || 'Failed to update order status');
+      toast.error(getApiErrorMessage(error, 'Failed to update order status'));
     }
   };
 

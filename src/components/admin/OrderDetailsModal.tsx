@@ -1,7 +1,7 @@
-import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Printer, Package, Truck, MapPin, Phone, Mail } from 'lucide-react';
 import { toast } from 'sonner';
+import logo from '@/assets/logo.png';
 
 interface OrderItem {
   productId: string;
@@ -52,8 +52,6 @@ interface OrderDetailsModalProps {
 }
 
 export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalProps) {
-  const [printMode, setPrintMode] = useState<'full' | 'label'>('full');
-
   if (!isOpen || !order) return null;
 
   const items = Array.isArray(order.items) ? order.items : [];
@@ -80,10 +78,7 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
   order.shipping = Number(order.shipping || 0);
 
   const handlePrint = (mode: 'full' | 'label') => {
-    setPrintMode(mode);
-    setTimeout(() => {
-      window.print();
-    }, 100);
+    printOrderDocument(order, mode);
   };
 
   const getStatusColor = (status: string) => {
@@ -284,67 +279,240 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                 Close
               </button>
             </div>
-
-            {/* Print Styles */}
-            <style>{`
-              .print-section {
-                display: none;
-              }
-
-              @media print {
-                @page {
-                  size: ${printMode === 'label' ? '4in 6in' : 'A4'};
-                  margin: ${printMode === 'label' ? '0' : '12mm'};
-                }
-
-                html,
-                body {
-                  margin: 0 !important;
-                  padding: 0 !important;
-                  background: white !important;
-                }
-
-                body * {
-                  visibility: hidden;
-                }
-
-                .print-section,
-                .print-section * {
-                  visibility: visible;
-                }
-
-                .print-section {
-                  display: block !important;
-                  position: absolute;
-                  left: 0;
-                  top: 0;
-                  width: 100%;
-                  background: white;
-                  color: black;
-                }
-
-                .print-page {
-                  display: block !important;
-                  box-sizing: border-box;
-                  margin: 0 auto;
-                  background: white;
-                  color: black;
-                  page-break-after: avoid;
-                }
-
-                .no-print {
-                  display: none !important;
-                }
-              }
-            `}</style>
           </motion.div>
-
-          {/* Print Content - Hidden */}
-          <PrintContent order={order} printMode={printMode} />
         </div>
       )}
     </AnimatePresence>
   );
+}
+
+const escapeHtml = (value: unknown) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+const formatPrintCurrency = (value: unknown) =>
+  `₹${Number(value || 0).toLocaleString('en-IN')}`;
+
+const getLabelHtml = (order: Order, logoUrl: string) => `
+  <!doctype html>
+  <html>
+    <head>
+      <title>Shipping Label - ${escapeHtml(order.orderId)}</title>
+      <style>
+        @page { size: 4in 6in; margin: 0; }
+        * { box-sizing: border-box; }
+        html, body {
+          width: 4in;
+          height: 6in;
+          margin: 0;
+          padding: 0;
+          background: #fff;
+          color: #000;
+          font-family: Arial, sans-serif;
+          overflow: hidden;
+        }
+        .label {
+          width: 4in;
+          height: 6in;
+          padding: 0.25in;
+          border: 1px solid #000;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          page-break-after: avoid;
+          break-after: avoid;
+        }
+        .brand { text-align: center; margin-bottom: 0.14in; }
+        .logo {
+          width: 0.72in;
+          height: 0.72in;
+          border-radius: 999px;
+          object-fit: cover;
+          border: 1px solid #ddd;
+          display: block;
+          margin: 0 auto 0.06in;
+        }
+        h1 { margin: 0 0 0.04in; text-align: center; font-size: 18pt; }
+        .sub { text-align: center; color: #666; font-size: 8pt; margin-bottom: 0.2in; }
+        .block { margin-bottom: 0.16in; }
+        .rule { border-bottom: 1px solid #000; padding-bottom: 0.1in; }
+        .label-text { color: #777; font-size: 8pt; font-weight: 700; margin-bottom: 0.04in; }
+        .order { font-size: 13pt; font-family: monospace; font-weight: 700; overflow-wrap: anywhere; }
+        .name { font-size: 11pt; font-weight: 700; margin-bottom: 0.04in; }
+        .address { font-size: 9pt; line-height: 1.35; }
+        .phone { font-size: 9pt; margin-top: 0.04in; }
+        .tracking {
+          margin-top: auto;
+          border: 1px dashed #999;
+          padding: 0.1in;
+          text-align: center;
+        }
+        .tracking .value {
+          font-size: 10pt;
+          font-family: monospace;
+          font-weight: 700;
+          overflow-wrap: anywhere;
+        }
+      </style>
+    </head>
+    <body>
+      <section class="label">
+        <div class="brand">
+          <img class="logo" src="${escapeHtml(logoUrl)}" alt="Leena logo" />
+          <h1>Leena</h1>
+          <div class="sub">SHIPPING LABEL</div>
+        </div>
+        <div class="block rule">
+          <div class="label-text">ORDER #</div>
+          <div class="order">${escapeHtml(order.orderId)}</div>
+        </div>
+        <div class="block">
+          <div class="label-text">SHIP TO:</div>
+          <div class="name">${escapeHtml(order.shippingAddress.fullName)}</div>
+          <div class="address">
+            ${escapeHtml(order.shippingAddress.address)}<br />
+            ${escapeHtml(order.shippingAddress.city)}, ${escapeHtml(order.shippingAddress.state)} ${escapeHtml(order.shippingAddress.pincode)}
+          </div>
+        </div>
+        <div class="phone"><strong>Phone:</strong> ${escapeHtml(order.shippingAddress.phone)}</div>
+        <div class="tracking">
+          <div class="label-text">Tracking #</div>
+          <div class="value">${escapeHtml(order.trackingNumber || order.orderId)}</div>
+        </div>
+      </section>
+      <script>
+        window.onload = () => {
+          window.focus();
+          window.print();
+        };
+      </script>
+    </body>
+  </html>
+`;
+
+const getFullDetailsHtml = (order: Order, logoUrl: string) => {
+  const items = (order.items || []).map((item) => `
+    <tr>
+      <td>
+        <strong>${escapeHtml(item.name)}</strong>
+        ${item.color ? `<div class="muted">Color: ${escapeHtml(item.color)}</div>` : ''}
+      </td>
+      <td>${escapeHtml(item.size)}</td>
+      <td>${Number(item.quantity || 0)}</td>
+      <td>${formatPrintCurrency(item.price)}</td>
+      <td>${formatPrintCurrency(Number(item.price || 0) * Number(item.quantity || 0))}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <title>Order Details - ${escapeHtml(order.orderId)}</title>
+        <style>
+          @page { size: A4; margin: 12mm; }
+          body { margin: 0; font-family: Arial, sans-serif; color: #000; }
+          .page { max-width: 186mm; margin: 0 auto; }
+          .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10mm; margin-bottom: 12mm; }
+          .logo {
+            width: 18mm;
+            height: 18mm;
+            border-radius: 999px;
+            object-fit: cover;
+            border: 1px solid #ddd;
+            display: block;
+            margin: 0 auto 3mm;
+          }
+          .brand { font-size: 28pt; font-weight: 700; }
+          .muted { color: #666; font-size: 8pt; }
+          .grid { display: flex; justify-content: space-between; gap: 10mm; margin-bottom: 10mm; }
+          .label-title { color: #777; font-size: 8pt; font-weight: 700; margin-bottom: 2pt; }
+          .value { font-size: 11pt; font-weight: 700; }
+          .box { background: #f5f5f5; padding: 8mm; margin-bottom: 10mm; }
+          table { width: 100%; border-collapse: collapse; font-size: 9pt; margin-bottom: 10mm; }
+          th { background: #f5f5f5; border-bottom: 2px solid #000; padding: 6pt; text-align: left; }
+          td { border-bottom: 1px solid #ddd; padding: 6pt; }
+          th:nth-child(n+2), td:nth-child(n+2) { text-align: right; }
+          .summary { margin-left: auto; width: 70mm; }
+          .summary-row { display: flex; justify-content: space-between; padding: 5pt 0; }
+          .total { border-top: 2px solid #000; font-weight: 700; font-size: 12pt; }
+        </style>
+      </head>
+      <body>
+        <main class="page">
+          <div class="header">
+            <img class="logo" src="${escapeHtml(logoUrl)}" alt="Leena logo" />
+            <div class="brand">Leena</div>
+            <div class="muted">Order Receipt</div>
+          </div>
+          <div class="grid">
+            <div><div class="label-title">ORDER NUMBER</div><div class="value">${escapeHtml(order.orderId)}</div></div>
+            <div><div class="label-title">DATE</div><div class="value">${new Date(order.createdAt).toLocaleDateString('en-IN')}</div></div>
+            <div><div class="label-title">STATUS</div><div class="value">${escapeHtml(order.orderStatus).toUpperCase()}</div></div>
+          </div>
+          <div class="box">
+            <div class="label-title">SHIPPING TO</div>
+            <strong>${escapeHtml(order.shippingAddress.fullName)}</strong><br />
+            ${escapeHtml(order.shippingAddress.address)}<br />
+            ${escapeHtml(order.shippingAddress.city)}, ${escapeHtml(order.shippingAddress.state)} - ${escapeHtml(order.shippingAddress.pincode)}<br />
+            <strong>Phone:</strong> ${escapeHtml(order.shippingAddress.phone)}
+          </div>
+          <table>
+            <thead>
+              <tr><th>Product</th><th>Size</th><th>Qty</th><th>Price</th><th>Total</th></tr>
+            </thead>
+            <tbody>${items}</tbody>
+          </table>
+          <div class="summary">
+            <div class="summary-row"><span>Subtotal:</span><span>${formatPrintCurrency(order.subtotal)}</span></div>
+            <div class="summary-row"><span>Shipping:</span><span>${formatPrintCurrency(order.shipping)}</span></div>
+            <div class="summary-row total"><span>TOTAL:</span><span>${formatPrintCurrency(order.total)}</span></div>
+          </div>
+        </main>
+        <script>
+          window.onload = () => {
+            window.focus();
+            window.print();
+          };
+        </script>
+      </body>
+    </html>
+  `;
+};
+
+function printOrderDocument(order: Order, mode: 'full' | 'label') {
+  const frame = document.createElement('iframe');
+  frame.style.position = 'fixed';
+  frame.style.right = '0';
+  frame.style.bottom = '0';
+  frame.style.width = '0';
+  frame.style.height = '0';
+  frame.style.border = '0';
+  frame.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(frame);
+
+  const doc = frame.contentWindow?.document;
+  if (!doc) {
+    toast.error('Unable to open print preview');
+    frame.remove();
+    return;
+  }
+
+  doc.open();
+  const logoUrl = new URL(logo, window.location.origin).href;
+  doc.write(mode === 'label' ? getLabelHtml(order, logoUrl) : getFullDetailsHtml(order, logoUrl));
+  doc.close();
+
+  const removeFrame = () => {
+    setTimeout(() => frame.remove(), 500);
+  };
+
+  frame.contentWindow?.addEventListener('afterprint', removeFrame, { once: true });
+  setTimeout(removeFrame, 60_000);
 }
 
 interface PrintContentProps {

@@ -9,9 +9,9 @@ import { uploadToCloudinary } from '../config/cloudinary';
 import { validateImageBuffer } from '../utils/itemHelpers';
 
 const ORDER_TRANSITIONS: Record<string, string[]> = {
-    pending: ['confirmed', 'processing', 'cancelled'],
-    confirmed: ['processing', 'cancelled'],
-    processing: ['shipped', 'cancelled'],
+    pending: ['confirmed', 'processing', 'cancelled', 'returned'],
+    confirmed: ['processing', 'cancelled', 'returned'],
+    processing: ['shipped', 'cancelled', 'returned'],
     shipped: ['delivered', 'returned'],
     delivered: ['returned'],
     cancelled: [],

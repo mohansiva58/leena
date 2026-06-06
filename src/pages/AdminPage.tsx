@@ -87,9 +87,9 @@ const statusColors: Record<string, string> = {
 type TabType = 'dashboard' | 'orders' | 'products' | 'sales' | 'coupons';
 
 const orderTransitions: Record<string, string[]> = {
-  pending: ['confirmed', 'processing', 'cancelled'],
-  confirmed: ['processing', 'cancelled'],
-  processing: ['shipped', 'cancelled'],
+  pending: ['confirmed', 'processing', 'cancelled', 'returned'],
+  confirmed: ['processing', 'cancelled', 'returned'],
+  processing: ['shipped', 'cancelled', 'returned'],
   shipped: ['delivered', 'returned'],
   delivered: ['returned'],
   cancelled: [],

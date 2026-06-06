@@ -23,6 +23,7 @@ type PolicyPageProps = {
     heading: string;
     body: string;
   }>;
+  bulletList?: boolean;
 };
 
 const getSectionIcon = (heading: string) => {
@@ -39,7 +40,7 @@ const getSectionIcon = (heading: string) => {
   return <FileText className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />;
 };
 
-export function PolicyPage({ title, intro, sections }: PolicyPageProps) {
+export function PolicyPage({ title, intro, sections, bulletList = false }: PolicyPageProps) {
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -55,23 +56,39 @@ export function PolicyPage({ title, intro, sections }: PolicyPageProps) {
             {intro}
           </p>
 
-          <div className="mt-10 space-y-6">
-            {sections.map((section) => (
-              <article key={section.heading} className="rounded-lg border border-border bg-card p-6 shadow-sm hover:shadow-md transition-shadow duration-300">
-                <div className="flex gap-4">
-                  {getSectionIcon(section.heading)}
-                  <div>
-                    <h2 className="mb-2 text-xl font-semibold text-foreground">
-                      {section.heading}
-                    </h2>
-                    <p className="leading-relaxed text-muted-foreground text-sm sm:text-base">
+          {bulletList ? (
+            <article className="mt-10 rounded-lg border border-border bg-card p-6 shadow-sm md:p-8">
+              <ul className="space-y-3 text-sm leading-7 text-muted-foreground sm:text-base">
+                {sections.map((section) => (
+                  <li key={section.heading} className="flex gap-3">
+                    <span className="mt-3 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-600" />
+                    <span>
+                      <strong className="font-semibold text-foreground">{section.heading}:</strong>{' '}
                       {section.body}
-                    </p>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ) : (
+            <div className="mt-10 space-y-6">
+              {sections.map((section) => (
+                <article key={section.heading} className="rounded-lg border border-border bg-card p-6 shadow-sm hover:shadow-md transition-shadow duration-300">
+                  <div className="flex gap-4">
+                    {getSectionIcon(section.heading)}
+                    <div>
+                      <h2 className="mb-2 text-xl font-semibold text-foreground">
+                        {section.heading}
+                      </h2>
+                      <p className="leading-relaxed text-muted-foreground text-sm sm:text-base">
+                        {section.body}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </article>
-            ))}
-          </div>
+                </article>
+              ))}
+            </div>
+          )}
 
           {/* Help Banner */}
           <div className="mt-12 rounded-xl border border-blue-100 bg-blue-50/30 p-6 md:p-8 text-center">
@@ -129,6 +146,7 @@ export function TermsPage() {
     <PolicyPage
       title="Terms & Conditions"
       intro="By using Leena, you agree to the terms below for browsing, ordering, payment, and customer support."
+      bulletList
       sections={[
         {
           heading: 'Orders',
@@ -156,6 +174,7 @@ export function RefundPolicyPage() {
     <PolicyPage
       title="Refund / Return Policy"
       intro="Review our policy before placing an order. We want customers to make informed purchases."
+      bulletList
       sections={[
         {
           heading: 'No Returns / No Exchanges',

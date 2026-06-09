@@ -56,7 +56,7 @@ export function SalesSection() {
 
   if (loading) {
     return (
-      <section className="py-16 bg-cream">
+      <section className="py-10 sm:py-12 bg-cream">
         <div className="mx-auto max-w-7xl px-4 md:px-8 text-center">
           <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
             {[1, 2, 3, 4].map(i => (
@@ -69,7 +69,7 @@ export function SalesSection() {
   }
 
   return (
-    <section className="py-16 sm:py-20 bg-cream relative overflow-hidden">
+    <section className="py-10 sm:py-12 bg-cream relative overflow-hidden">
       <div className="mx-auto max-w-7xl px-4 md:px-8 relative z-10">
         {/* Section Header */}
         <motion.div

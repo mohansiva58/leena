@@ -158,17 +158,17 @@ export const products: Product[] = [
 
 export const categories = [
   'All',
-  'Sarees',
-  'Lehengas',
-  'Anarkali',
-  'Dupattas',
+  // 'Sarees',
+  'Lehengas sets',
+  'Anarkalis',
+  // 'Dupattas',
   'Kurtis',
-  'Blouses',
-  'Bottom Wear',
-  '2pc Set',
-  '3pc Set',
-  'Frocks/Alines',
-  'Handwork Dresses'
+  // 'Blouses',
+  'Premium collections',
+  '2pc Sets',
+  '3pc Sets',
+  'Frocks/A-lines',
+  // 'Handwork Dresses'
 ];
 
 export const priceRanges = [

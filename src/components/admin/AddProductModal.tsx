@@ -71,6 +71,8 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
     const [additionalImages, setAdditionalImages] = useState<File[]>([]);
     const [additionalImagePreviews, setAdditionalImagePreviews] = useState<string[]>([]);
     const [existingImageUrls, setExistingImageUrls] = useState<string[]>([]);
+    const [isMainImageDragging, setIsMainImageDragging] = useState(false);
+    const [isGalleryDragging, setIsGalleryDragging] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -98,6 +100,8 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                 setMainImagePreview(product.image);
                 setAdditionalImagePreviews(product.images || []);
                 setExistingImageUrls(product.images || []);
+                setIsMainImageDragging(false);
+                setIsGalleryDragging(false);
             } else {
                 setFormData({
                     name: '',
@@ -117,6 +121,8 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                 setAdditionalImages([]);
                 setAdditionalImagePreviews([]);
                 setExistingImageUrls([]);
+                setIsMainImageDragging(false);
+                setIsGalleryDragging(false);
             }
         }
     }, [isOpen, product]);
@@ -159,11 +165,39 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
 
     const totalInventory = normalizedSizeRows.reduce((sum, row) => sum + row.quantity, 0);
 
+    const getImageFiles = (files: FileList | File[]) =>
+        Array.from(files).filter((file) => file.type.startsWith('image/'));
+
+    const setMainImageFile = (file: File) => {
+        setMainImage(file);
+        setMainImagePreview(URL.createObjectURL(file));
+    };
+
+    const addGalleryImageFiles = (files: File[]) => {
+        const imageFiles = getImageFiles(files);
+
+        if (imageFiles.length === 0) {
+            toast.error('Please drop image files only');
+            return;
+        }
+
+        const newPreviews = imageFiles.map(file => URL.createObjectURL(file));
+
+        setAdditionalImages(prev => [...prev, ...imageFiles]);
+        setAdditionalImagePreviews(prev => [...prev, ...newPreviews]);
+        toast.success(`Added ${imageFiles.length} image(s)`);
+    };
+
     const handleMainImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setMainImage(file);
-            setMainImagePreview(URL.createObjectURL(file));
+            const [file] = getImageFiles(e.target.files);
+
+            if (!file) {
+                toast.error('Please select an image file');
+                return;
+            }
+
+            setMainImageFile(file);
         }
     };
 
@@ -174,13 +208,28 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
         }
 
         const files = Array.from(e.target.files);
-        const newPreviews = files.map(file => URL.createObjectURL(file));
-        
-        setAdditionalImages(prev => [...prev, ...files]);
-        setAdditionalImagePreviews(prev => [...prev, ...newPreviews]);
-
+        addGalleryImageFiles(files);
         e.target.value = '';
-        toast.success(`✓ Added ${files.length} image(s)`);
+    };
+
+    const handleMainImageDrop = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setIsMainImageDragging(false);
+
+        const [file] = getImageFiles(e.dataTransfer.files);
+
+        if (!file) {
+            toast.error('Please drop an image file');
+            return;
+        }
+
+        setMainImageFile(file);
+    };
+
+    const handleGalleryImagesDrop = (e: React.DragEvent<HTMLButtonElement>) => {
+        e.preventDefault();
+        setIsGalleryDragging(false);
+        addGalleryImageFiles(Array.from(e.dataTransfer.files));
     };
 
     const removeAdditionalImage = (imageUrl: string, isExisting: boolean) => {
@@ -468,7 +517,18 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                                     <label className="block text-sm font-medium mb-2">Main Image</label>
                                     <div
                                         onClick={() => mainImageInputRef.current?.click()}
-                                        className="border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer hover:border-[#06095b] transition-colors min-h-[150px] bg-secondary/30"
+                                        onDragEnter={(e) => {
+                                            e.preventDefault();
+                                            setIsMainImageDragging(true);
+                                        }}
+                                        onDragOver={(e) => e.preventDefault()}
+                                        onDragLeave={() => setIsMainImageDragging(false)}
+                                        onDrop={handleMainImageDrop}
+                                        className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-colors min-h-[150px] ${
+                                            isMainImageDragging
+                                                ? 'border-[#06095b] bg-[#06095b]/10'
+                                                : 'border-border bg-secondary/30 hover:border-[#06095b]'
+                                        }`}
                                     >
                                         {mainImagePreview ? (
                                             <div className="relative w-full h-40">
@@ -488,7 +548,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                                         ) : (
                                             <>
                                                 <Upload className="text-muted-foreground mb-2" size={24} />
-                                                <span className="text-sm text-muted-foreground">Click to upload main image</span>
+                                                <span className="text-sm text-muted-foreground">Click or drop main image here</span>
                                             </>
                                         )}
                                         <input
@@ -568,7 +628,16 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                                     <button
                                         type="button"
                                         onClick={() => additionalImagesInputRef.current?.click()}
-                                        className="w-full py-4 px-4 border-2 border-dashed border-[#06095b] rounded-lg hover:bg-[#06095b]/10 hover:border-[#06095b] transition-all flex items-center justify-center gap-3 text-[#06095b] font-semibold text-base"
+                                        onDragEnter={(e) => {
+                                            e.preventDefault();
+                                            setIsGalleryDragging(true);
+                                        }}
+                                        onDragOver={(e) => e.preventDefault()}
+                                        onDragLeave={() => setIsGalleryDragging(false)}
+                                        onDrop={handleGalleryImagesDrop}
+                                        className={`w-full py-4 px-4 border-2 border-dashed border-[#06095b] rounded-lg transition-all flex items-center justify-center gap-3 text-[#06095b] font-semibold text-base ${
+                                            isGalleryDragging ? 'bg-[#06095b]/15' : 'hover:bg-[#06095b]/10'
+                                        }`}
                                     >
                                         <Plus size={22} />
                                         Add More Images (Click or Drag & Drop)

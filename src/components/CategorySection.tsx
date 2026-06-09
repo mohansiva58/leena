@@ -78,13 +78,13 @@ const categories = [
 
   // { label: 'Blouses', query: 'Blouses', image: modernCategoryImage('Blouses', 'STATEMENT CUTS', '#02013f', '#4d1b68', '#d9b3ff') },
   // { label: 'Bottom Wear', query: 'Bottom Wear', image: remoteImage('photo-1594633312681-425c7b97ccd1') },
-    { label: 'Frocks / Alines ', query: 'Frocks/Alines', image: remoteImage('photo-1496747611176-843222e1e57c') },
-  { label: '2pc Set', query: '2pc Set', image: remoteImage('photo-1485968579580-b6d095142e6e') },
-  { label: '3pc Set', query: '3pc Set', image: remoteImage('photo-1595777457583-95e059d581b8') },
-    { label: 'Anarkali', query: 'Anarkali', image: remoteImage('photo-1642956369651-ccc858c72de7') },
-      { label: 'Cotton Dresses', query: 'Cotton Dresses', image: remoteImage('photo-1595777457583-95e059d581b8') },
-        { label: 'Lehengas', query: 'Lehengas', image: remoteImage('photo-1583398289726-55368e171384') },
-  { label: 'Georgette Dresses', query: 'Georgette Dresses', image: remoteImage('photo-1583398289726-55368e171384') },
+    { label: 'Frocks/ A-lines ', query: 'Frocks/A-lines', image: remoteImage('photo-1496747611176-843222e1e57c') },
+  { label: '2pc Sets', query: '2pc Set', image: remoteImage('photo-1485968579580-b6d095142e6e') },
+  { label: '3pc Sets', query: '3pc Set', image: remoteImage('photo-1595777457583-95e059d581b8') },
+    { label: 'Anarkalis', query: 'Anarkali', image: remoteImage('photo-1642956369651-ccc858c72de7') },
+      { label: 'Premium collections', query: 'premium collection', image: remoteImage('photo-1595777457583-95e059d581b8') },
+        { label: 'Lehenga sets', query: 'Lehengas', image: remoteImage('photo-1583398289726-55368e171384') },
+  // { label: 'Georgette Dresses', query: 'Georgette Dresses', image: remoteImage('photo-1583398289726-55368e171384') },
 
 
   // { label: 'Handwork Dresses', query: 'Handwork Dresses', image: remoteImage('photo-1515886657613-9f3515b0c78f') },
@@ -107,7 +107,7 @@ export function CategorySection() {
   }, [api]);
 
   return (
-    <section className="overflow-hidden bg-white py-14 sm:py-20">
+    <section className="overflow-hidden bg-white pt-14 pb-6 sm:pt-20 sm:pb-8">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -134,7 +134,7 @@ export function CategorySection() {
           }}
           className="relative"
         >
-          <CarouselContent className="-ml-4 py-1 sm:-ml-6">
+          <CarouselContent className="-ml-4 py-1 sm:-ml-6 lg:justify-center">
             {categories.map((category, index) => (
               <CarouselItem
                 key={category.label}

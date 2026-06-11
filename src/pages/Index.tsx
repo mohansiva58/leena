@@ -1,6 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { toast } from 'sonner';
 import { Header } from '@/components/Header';
 import { HeroSection } from '@/components/HeroSection';
 import { SalesSection } from '@/components/SalesSection';
@@ -8,13 +7,16 @@ import { ProductSection } from '@/components/ProductSection';
 import { CategorySection } from '@/components/CategorySection';
 import { Footer } from '@/components/Footer';
 import { Marquee } from '@/components/Marquee';
+import { AuthModal } from '@/components/AuthModal';
 
 const Index = () => {
   const location = useLocation();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
   useEffect(() => {
     const st = location.state as { requireAuth?: boolean } | null;
     if (st?.requireAuth) {
-      toast.message('దయచేసి లాగిన్ అవండి', { description: 'చెకౌట్ / ఆర్డర్స్ కోసం ఖాతా అవసరం.' });
+      setShowAuthModal(true);
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
@@ -31,9 +33,9 @@ const Index = () => {
         {/* <ProductSection title="Dinu's Collections" subtitle="Exclusive Designer Wear" category="Dinu's Collections" /> */}
         {/* <ProductSection title="Premium Collection" subtitle="Handcrafted Luxury" featured={true} /> */}
         <ProductSection title="New Arrivals" subtitle="Latest Trends" filter="new" />
-       
       </main>
       <Footer />
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Minus, Plus, Trash2, ShoppingCart, ArrowRight, ChevronLeft } from 'lucide-react';
 import { Header } from '@/components/Header';
@@ -14,6 +14,7 @@ export default function CartPage() {
   const { items, removeItem, updateQuantity, getTotalPrice, clearCart } = useCartStore();
   const { isAuthenticated } = useAuth();
   const [promoCode, setPromoCode] = useState('');
+  const navigate = useNavigate();
 
   const syncCartAction = async (action: () => Promise<unknown>) => {
     try {
@@ -62,6 +63,15 @@ export default function CartPage() {
     if (success) {
       clearCart();
     }
+  };
+
+  const handleProceedToCheckout = () => {
+    if (!isAuthenticated) {
+      navigate('/', { state: { from: '/checkout', requireAuth: true } });
+      return;
+    }
+
+    navigate('/checkout');
   };
 
   const subtotal = getTotalPrice();
@@ -285,15 +295,14 @@ export default function CartPage() {
                 </div>
 
                 {/* Checkout Button */}
-                <Link to="/checkout" className="block">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="w-full btn-primary mt-6 py-4 font-semibold"
-                  >
-                    Proceed to Checkout
-                  </motion.button>
-                </Link>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleProceedToCheckout}
+                  className="w-full btn-primary mt-6 py-4 font-semibold"
+                >
+                  Proceed to Checkout
+                </motion.button>
 
                 {/* Payment Icons */}
                 <div className="mt-6 text-center">

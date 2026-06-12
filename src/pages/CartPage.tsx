@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Minus, Plus, Trash2, ShoppingCart, ArrowRight, ChevronLeft } from 'lucide-react';
@@ -14,6 +14,10 @@ export default function CartPage() {
   const { items, removeItem, updateQuantity, getTotalPrice, clearCart } = useCartStore();
   const { isAuthenticated } = useAuth();
   const [promoCode, setPromoCode] = useState('');
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, []);
   const navigate = useNavigate();
 
   const syncCartAction = async (action: () => Promise<unknown>) => {

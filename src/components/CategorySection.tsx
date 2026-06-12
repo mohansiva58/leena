@@ -6,8 +6,6 @@ import {
   type CarouselApi,
   CarouselContent,
   CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
 } from '@/components/ui/carousel';
 
 const remoteImage = (photoId: string) =>
@@ -74,12 +72,12 @@ const fallbackImage = (label: string) => {
 };
 
 const categories = [
-  { label: 'Frocks/A-lines', query: 'Frocks/A-lines', image: remoteImage('photo-1496747611176-843222e1e57c') },
-  { label: '2pc Sets', query: '2pc Sets', image: remoteImage('photo-1485968579580-b6d095142e6e') },
-  { label: '3pc Sets', query: '3pc Sets', image: remoteImage('photo-1595777457583-95e059d581b8') },
-  { label: 'Anarkalis', query: 'Anarkalis', image: remoteImage('photo-1642956369651-ccc858c72de7') },
-  { label: 'Premium Collections', query: 'Premium Collections', image: remoteImage('photo-1595777457583-95e059d581b8') },
-  { label: 'Lehenga Sets', query: 'Lehenga Sets', image: remoteImage('photo-1583398289726-55368e171384') },
+  { label: 'Frocks/A-lines', query: 'Frocks/A-lines', image: '/a-line.jpeg' },
+  { label: '2pc Sets', query: '2pc Sets', image: '/2pc.jpeg' },
+  { label: '3pc Sets', query: '3pc Sets', image: '/3pc.png' },
+  { label: 'Anarkalis', query: 'Anarkalis', image: '/anarkali.jpeg' },
+  { label: 'Premium Collections', query: 'Premium Collections', image: '/premiumcollection.png' },
+  { label: 'Lehenga Sets', query: 'Lehenga Sets', image: '/lehanga.jpeg' },
 ];
 
 
@@ -131,7 +129,7 @@ export function CategorySection() {
             {categories.map((category, index) => (
               <CarouselItem
                 key={category.label}
-                className="basis-[33%] pl-4 sm:basis-[24%] sm:pl-6 md:basis-[18%] lg:basis-[14.285%] xl:basis-[12.5%]"
+                className="basis-[42%] pl-4 sm:basis-[30%] sm:pl-6 md:basis-[24%] lg:basis-[18%] xl:basis-[16%]"
               >
                 <motion.div
                   initial={{ opacity: 0, y: 24 }}
@@ -141,10 +139,10 @@ export function CategorySection() {
                 >
                   <Link
                     to={`/shop?category=${encodeURIComponent(category.query)}`}
-                    className="group flex min-h-[142px] flex-col items-center justify-start text-center outline-none sm:min-h-[190px]"
+                    className="group flex min-h-[170px] flex-col items-center justify-start text-center outline-none sm:min-h-[240px]"
                     aria-label={`Shop ${category.label}`}
                   >
-                    <span className="relative block h-20 w-20 overflow-hidden rounded-full bg-secondary ring-2 ring-border/30 transition duration-300 group-hover:-translate-y-1 group-hover:ring-primary group-focus-visible:ring-2 group-focus-visible:ring-primary sm:h-28 sm:w-28 lg:h-32 lg:w-32">
+                    <span className="relative block h-28 w-28 overflow-hidden rounded-full bg-secondary ring-2 ring-border/30 transition duration-300 group-hover:-translate-y-1 group-hover:ring-primary group-focus-visible:ring-2 group-focus-visible:ring-primary sm:h-40 sm:w-40 lg:h-44 lg:w-44">
                       <img
                         src={category.image}
                         alt={`${category.label} collection`}
@@ -152,7 +150,7 @@ export function CategorySection() {
                           event.currentTarget.onerror = null;
                           event.currentTarget.src = fallbackImage(category.label);
                         }}
-                        className="h-full w-full object-cover transition duration-500 group-hover:scale-110"
+                        className="h-full w-full object-cover object-top transition duration-500 group-hover:scale-110"
                         loading="lazy"
                       />
                     </span>

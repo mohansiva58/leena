@@ -51,57 +51,46 @@ export const authenticateUser = async (
         let user = (await cacheGet(userCacheKey)) as UserAuthData | null;
 
         if (!user) {
-            const dbUser = await User.findOne({ firebaseUid: decodedToken.uid });
+            try {
+                // Generate email with fallback to ensure it's always unique
+                let email = decodedToken.email;
+                if (!email) {
+                    // Create a unique email based on Firebase UID
+                    email = `user_${decodedToken.uid.slice(0, 8)}@firebase.local`;
+                }
+                email = email.toLowerCase().trim();
 
-            if (!dbUser) {
-                try {
-                    const email = decodedToken.email || `user_${decodedToken.uid}@example.com`;
-                    const newUser = await User.create({
-                        firebaseUid: decodedToken.uid,
-                        email,
-                        displayName: decodedToken.name || decodedToken.email?.split('@')[0] || 'User',
-                        picture: decodedToken.picture || '',
-                        role: isAdminEmail(email) ? 'admin' : 'user',
-                    });
-                    user = newUser.toObject() as unknown as UserAuthData;
-                } catch (dbError) {
-                    const retryUser = await User.findOne({ firebaseUid: decodedToken.uid });
-                    if (retryUser) {
-                        user = retryUser.toObject() as unknown as UserAuthData;
-                    } else {
-                        user = {
+                const shouldBeAdmin = isAdminEmail(email);
+
+                // Use findOneAndUpdate with upsert to ensure user always exists in database
+                const upsertedUser = await User.findOneAndUpdate(
+                    { firebaseUid: decodedToken.uid },
+                    {
+                        $setOnInsert: {
                             firebaseUid: decodedToken.uid,
-                            email: decodedToken.email || '',
-                            displayName: decodedToken.name || decodedToken.email || 'User',
-                            role: 'user',
-                        };
-                    }
-                }
-            } else {
-                user = dbUser.toObject() as unknown as UserAuthData;
-            }
+                            email,
+                            displayName: decodedToken.name || email.split('@')[0] || 'User',
+                            picture: decodedToken.picture || '',
+                            role: shouldBeAdmin ? 'admin' : 'user',
+                        },
+                        $set: {
+                            email, // Always update email from token
+                            role: shouldBeAdmin ? 'admin' : 'user', // Update role if should be admin
+                        },
+                    },
+                    { upsert: true, new: true }
+                );
 
-            if (user) {
-                const tokenEmail = decodedToken.email || user.email;
-                const shouldBeAdmin = isAdminEmail(tokenEmail);
-                const updates: Partial<Pick<UserAuthData, 'email' | 'role'>> = {};
-
-                if (tokenEmail && user.email !== tokenEmail) {
-                    updates.email = tokenEmail;
-                    user.email = tokenEmail;
+                if (!upsertedUser) {
+                    throw new Error('Failed to create or retrieve user');
                 }
 
-                if (shouldBeAdmin && user.role !== 'admin') {
-                    updates.role = 'admin';
-                    user.role = 'admin';
-                }
-
-                if (Object.keys(updates).length > 0) {
-                    await User.updateOne({ firebaseUid: decodedToken.uid }, { $set: updates });
-                    await cacheDel(userCacheKey);
-                }
-
+                user = upsertedUser.toObject() as unknown as UserAuthData;
                 await cacheSet(userCacheKey, user, CACHE_TTL.USER_AUTH);
+            } catch (dbError) {
+                console.error('Auth middleware database error:', dbError);
+                res.status(500).json({ error: 'Failed to authenticate user' });
+                return;
             }
         }
 

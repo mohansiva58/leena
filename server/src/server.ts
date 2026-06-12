@@ -73,7 +73,8 @@ function createApp(): Application {
 
     // Security middleware
     app.use(helmet({
-        crossOriginResourcePolicy: { policy: "cross-origin" }
+        crossOriginResourcePolicy: { policy: "cross-origin" },
+        crossOriginOpenerPolicy: false, // Allow popups for Firebase Google auth
     }));
 
     // ============ RATE LIMITING (per-route) ============

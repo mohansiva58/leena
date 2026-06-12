@@ -68,8 +68,7 @@ export default function AboutPage() {
                                 </p>
 
                                 <p className="text-muted-foreground leading-relaxed mb-10">
-                                    With a deep love for fashion and ethnic wear, Alekhya wanted to build a brand that offers stylish, comfortable, and affordable outfits for women who love to feel confident in what they wear. What started as a small idea with limited collections slowly turned into a growing family of customers who trusted and supported the brand from day one.
-                                </p>
+                                    At Leena, we believe fashion should feel as unique as the women who wear it. That’s why we carefully curate and create exclusive designer-inspired collections that are thoughtfully selected for their elegance, quality, and individuality. Every piece is chosen to offer something distinctive, ensuring our customers discover styles that stand out and are not commonly found elsewhere. Our goal is to bring unique fashion experiences to women who appreciate timeless designs, modern trends, and the confidence that comes from wearing something truly special.                                </p>
 
                                 <div className="flex flex-wrap gap-12">
                                     <div>

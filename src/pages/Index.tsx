@@ -8,6 +8,8 @@ import { CategorySection } from '@/components/CategorySection';
 import { Footer } from '@/components/Footer';
 import { Marquee } from '@/components/Marquee';
 import { AuthModal } from '@/components/AuthModal';
+import { SEO } from '@/components/SEO';
+import { seoConfig } from '@/lib/seoConfig';
 
 const Index = () => {
   const location = useLocation();
@@ -23,6 +25,43 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title="Premium Women's Ethnic Fashion"
+        description="Discover Leena by Alekhya, a boutique collection of premium women's ethnic wear including frocks, A-line dresses, 2-piece sets, 3-piece sets, anarkalis, lehenga sets, and hand-picked festive styles."
+        path="/"
+        keywords={['premium collection', 'new arrivals', 'best selling ethnic wear', 'women boutique online']}
+        schema={[
+          {
+            '@context': 'https://schema.org',
+            '@type': 'ClothingStore',
+            name: seoConfig.siteName,
+            url: seoConfig.siteUrl,
+            image: seoConfig.defaultImage,
+            logo: `${seoConfig.siteUrl}/favicon.ico`,
+            description: seoConfig.defaultDescription,
+            email: 'leenabyalekhya@gmail.com',
+            address: {
+              '@type': 'PostalAddress',
+              streetAddress: 'T.C. 22/2463-1',
+              addressLocality: 'Ameenpur, Miyapur',
+              addressRegion: 'Telangana',
+              addressCountry: 'IN',
+            },
+            areaServed: 'IN',
+          },
+          {
+            '@context': 'https://schema.org',
+            '@type': 'WebSite',
+            name: seoConfig.siteName,
+            url: seoConfig.siteUrl,
+            potentialAction: {
+              '@type': 'SearchAction',
+              target: `${seoConfig.siteUrl}/shop?search={search_term_string}`,
+              'query-input': 'required name=search_term_string',
+            },
+          },
+        ]}
+      />
       <Header />
       <main>
         <HeroSection />

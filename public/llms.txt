@@ -1,0 +1,21 @@
+# Leena by Alekhya
+
+Leena by Alekhya is a women's boutique fashion website at https://leenabyalekhya.in.
+
+## Important URLs
+
+- Home: https://leenabyalekhya.in/
+- Shop: https://leenabyalekhya.in/shop
+- New arrivals: https://leenabyalekhya.in/shop?filter=new
+- Bestsellers: https://leenabyalekhya.in/shop?filter=bestseller
+- About: https://leenabyalekhya.in/about
+- Contact: https://leenabyalekhya.in/contact
+
+## Business Summary
+
+Leena by Alekhya offers premium women's ethnic wear and boutique fashion, including frocks, A-line dresses, 2-piece sets, 3-piece sets, anarkalis, premium collections, and lehenga sets.
+
+## Contact
+
+Email: leenabyalekhya@gmail.com
+Location: T.C. 22/2463-1, Ameenpur, Miyapur, Telangana, India

@@ -8,6 +8,8 @@ import { ProductCard } from '@/components/ProductCard';
 import { sizes, categories, Product } from '@/lib/products';
 import { productService } from '@/services/productService';
 import { useRealTimeStock } from '@/hooks/useRealTimeStock';
+import { SEO } from '@/components/SEO';
+import { seoConfig } from '@/lib/seoConfig';
 
 export default function ShopPage() {
   useRealTimeStock();
@@ -161,9 +163,48 @@ export default function ShopPage() {
 
   const activeFiltersCount = (selectedSize ? 1 : 0) + (selectedCategory ? 1 : 0);
   const visibleProducts = Array.isArray(products) ? products : [];
+  const pageHeading = search
+    ? `Search results for ${search}`
+    : filterParam === 'new'
+      ? 'New Arrivals'
+      : filterParam === 'bestseller'
+        ? 'Best Selling Ethnic Wear'
+        : categoryParam
+          ? categoryParam
+          : 'Shop All Collections';
+  const shopDescription = search
+    ? `Browse Leena by Alekhya products matching "${search}", including boutique ethnic wear, dresses, sets, and festive fashion.`
+    : `Shop ${pageHeading.toLowerCase()} from Leena by Alekhya. Explore premium women's ethnic wear, hand-picked boutique outfits, and designer-inspired styles.`;
+  const shopPath = categoryParam
+    ? `/shop?category=${encodeURIComponent(categoryParam)}`
+    : filterParam
+      ? `/shop?filter=${encodeURIComponent(filterParam)}`
+      : search
+        ? `/shop?search=${encodeURIComponent(search)}`
+        : '/shop';
+  const shopUrl = `${seoConfig.siteUrl}${shopPath}`;
+  const collectionSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: `${pageHeading} | ${seoConfig.siteName}`,
+    url: shopUrl,
+    description: shopDescription,
+    isPartOf: {
+      '@type': 'WebSite',
+      name: seoConfig.siteName,
+      url: seoConfig.siteUrl,
+    },
+  };
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title={pageHeading}
+        description={shopDescription}
+        path={shopPath}
+        keywords={[pageHeading, 'shop ethnic wear online', 'women boutique collection']}
+        schema={collectionSchema}
+      />
       <Header />
 
       <main className="pt-16 lg:pt-20 pb-10">

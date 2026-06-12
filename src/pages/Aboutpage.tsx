@@ -4,9 +4,25 @@ import { Footer } from '@/components/Footer';
 import aboutimage from '@/assets/image.png';
 import abt from '@/assets/abt2.jpeg';
 import logo from '@/assets/logo.png'
+import { SEO } from '@/components/SEO';
+import { seoConfig } from '@/lib/seoConfig';
 export default function AboutPage() {
     return (
         <div className="min-h-screen bg-background">
+            <SEO
+                title="About Leena by Alekhya"
+                description="Learn the story of Leena by Alekhya, a boutique fashion brand founded by Alekhya to bring premium, hand-picked, designer-inspired ethnic wear to women."
+                path="/about"
+                image="/image.png"
+                keywords={['about Leena by Alekhya', 'Alekhya boutique', 'women fashion brand']}
+                schema={{
+                    '@context': 'https://schema.org',
+                    '@type': 'AboutPage',
+                    name: `About ${seoConfig.siteName}`,
+                    url: `${seoConfig.siteUrl}/about`,
+                    description: 'The story, values, and boutique fashion approach behind Leena by Alekhya.',
+                }}
+            />
             <Header />
             <main className="pt-24 pb-16">
                 <section className="py-12 px-6 md:px-12 lg:px-24 bg-secondary rounded-3xl mx-4 md:mx-8">

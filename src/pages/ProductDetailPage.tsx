@@ -36,6 +36,8 @@ import { saleService } from '@/services/saleService';
 import { cartService } from '@/services/cartService';
 import { applyServerCartToLocal, notifyCartChangedAcrossTabs } from '@/lib/cartServerSync';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SEO } from '@/components/SEO';
+import { seoConfig } from '@/lib/seoConfig';
 
 import logo from '@/assets/logo.png';
 
@@ -266,6 +268,11 @@ export default function ProductDetailPage() {
   if (!product) {
     return (
       <div className="min-h-screen bg-white">
+        <SEO
+          title="Product Not Found"
+          description="This Leena by Alekhya product could not be found. Browse the shop for available boutique ethnic wear and premium collections."
+          noIndex
+        />
         <Header />
 
         <div className="flex h-screen flex-col items-center justify-center">
@@ -408,8 +415,78 @@ export default function ProductDetailPage() {
     }
   };
 
+  const productId = product.productId || product.id || product._id || id || '';
+  const productPath = `/product/${encodeURIComponent(productId)}`;
+  const productImage = selectedImage || product.image || galleryImages[0] || seoConfig.defaultImage;
+  const schemaImages = [...new Set([...galleryImages, productImage].filter(Boolean))];
+  const productDescription =
+    product.description || `${product.name} from Leena by Alekhya premium women's ethnic wear collection.`;
+  const productSchema = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: product.name,
+      image: schemaImages.length > 0 ? schemaImages : [seoConfig.defaultImage],
+      description: productDescription,
+      sku: productId,
+      brand: {
+        '@type': 'Brand',
+        name: seoConfig.siteName,
+      },
+      category: product.category,
+      offers: {
+        '@type': 'Offer',
+        url: `${seoConfig.siteUrl}${productPath}`,
+        priceCurrency: 'INR',
+        price: product.price,
+        availability: totalAvailableStock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        itemCondition: 'https://schema.org/NewCondition',
+      },
+      aggregateRating: product.rating && product.reviews
+        ? {
+            '@type': 'AggregateRating',
+            ratingValue: product.rating,
+            reviewCount: product.reviews,
+          }
+        : undefined,
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Home',
+          item: seoConfig.siteUrl,
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: 'Shop',
+          item: `${seoConfig.siteUrl}/shop`,
+        },
+        {
+          '@type': 'ListItem',
+          position: 3,
+          name: product.name,
+          item: `${seoConfig.siteUrl}${productPath}`,
+        },
+      ],
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-white">
+      <SEO
+        title={product.name}
+        description={productDescription}
+        path={productPath}
+        image={productImage}
+        type="product"
+        keywords={[product.name, product.category, 'buy ethnic wear online', 'Leena by Alekhya product']}
+        schema={productSchema}
+      />
       <Header />
 
       <main className="bg-white pt-16 lg:pt-20 pb-8">

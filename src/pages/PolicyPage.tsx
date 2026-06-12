@@ -1,5 +1,7 @@
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { SEO } from '@/components/SEO';
+import { seoConfig } from '@/lib/seoConfig';
 import { 
   Mail, 
   MapPin, 
@@ -41,8 +43,30 @@ const getSectionIcon = (heading: string) => {
 };
 
 export function PolicyPage({ title, intro, sections, bulletList = false }: PolicyPageProps) {
+  const policyPath =
+    title === 'Privacy Policy'
+      ? '/privacy-policy'
+      : title === 'Terms & Conditions'
+        ? '/terms-and-conditions'
+        : title === 'Refund / Return Policy'
+          ? '/refund-return-policy'
+          : undefined;
+
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title={`${title} | ${seoConfig.siteName}`}
+        description={intro}
+        path={policyPath}
+        keywords={[title, 'Leena by Alekhya policies', 'boutique shopping policy']}
+        schema={{
+          '@context': 'https://schema.org',
+          '@type': 'WebPage',
+          name: `${title} | ${seoConfig.siteName}`,
+          url: policyPath ? `${seoConfig.siteUrl}${policyPath}` : seoConfig.siteUrl,
+          description: intro,
+        }}
+      />
       <Header />
       <main className="pt-24 pb-16">
         <section className="container mx-auto max-w-4xl px-4">
@@ -204,6 +228,31 @@ export function RefundPolicyPage() {
 export function ContactPage() {
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title={`Contact ${seoConfig.siteName}`}
+        description="Contact Leena by Alekhya for boutique ethnic wear orders, customer care, shipping questions, and support."
+        path="/contact"
+        keywords={['contact Leena by Alekhya', 'Leena boutique customer care', 'Ameenpur boutique']}
+        schema={{
+          '@context': 'https://schema.org',
+          '@type': 'ContactPage',
+          name: `Contact ${seoConfig.siteName}`,
+          url: `${seoConfig.siteUrl}/contact`,
+          description: 'Customer care and location details for Leena by Alekhya.',
+          mainEntity: {
+            '@type': 'ClothingStore',
+            name: seoConfig.siteName,
+            email: 'leenabyalekhya@gmail.com',
+            address: {
+              '@type': 'PostalAddress',
+              streetAddress: 'T.C. 22/2463-1',
+              addressLocality: 'Ameenpur, Miyapur',
+              addressRegion: 'Telangana',
+              addressCountry: 'IN',
+            },
+          },
+        }}
+      />
       <Header />
       <main className="pt-24 pb-16">
         <section className="container mx-auto max-w-6xl px-4">

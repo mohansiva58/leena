@@ -12,3 +12,11 @@ Allow: /
 
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /checkout
+Disallow: /orders
+Disallow: /processing
+Disallow: /order-success
+Disallow: /payment-failed
+
+Sitemap: https://leenabyalekhya.in/sitemap.xml

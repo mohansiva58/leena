@@ -106,7 +106,7 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="relative w-full max-w-4xl bg-background rounded-xl shadow-xl my-8 flex flex-col max-h-[90vh]"
+            className="relative w-full max-w-4xl bg-background rounded-xl shadow-xl my-8 flex flex-col max-h-[90vh] lg:max-w-5xl xl:max-w-6xl"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-border sticky top-0 bg-background">

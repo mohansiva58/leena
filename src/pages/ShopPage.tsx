@@ -31,6 +31,10 @@ export default function ShopPage() {
   const categoryParam = searchParams.get('category');
   const search = searchParams.get('search');
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [categoryParam, filterParam, search]);
+
   const normalizeProductsResponse = (data: unknown): Product[] => {
     if (Array.isArray(data)) {
       return data as Product[];

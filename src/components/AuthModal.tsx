@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { X, Mail, Lock, Home } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { getPopupErrorMessage } from '@/utils/popupErrorHandler';
 
 interface AuthModalProps {
     isOpen: boolean;
@@ -53,8 +54,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
             await signInWithGoogle();
             onClose();
             onSuccess?.();
-        } catch (error) {
-            console.error('Google sign in error:', error);
+        } catch (error: unknown) {
+            const authError = error as { code?: string; message?: string };
+            console.error('Google sign in error:', authError);
+            
+            // Show user-friendly error message using utility
+            const errorMessage = getPopupErrorMessage(error);
+            toast.error(errorMessage);
         } finally {
             setLoading(false);
         }

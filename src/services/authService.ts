@@ -42,12 +42,26 @@ export const authService = {
         return userCredential.user;
     },
 
-    // Google Authentication
+// Google Authentication
     signInWithGoogle: async () => {
-        const userCredential = await signInWithPopup(auth, googleProvider);
-        const token = await userCredential.user.getIdToken();
-        localStorage.setItem('firebaseToken', token);
-        return userCredential.user;
+        try {
+            // Configure Google provider for popup authentication
+            googleProvider.setCustomParameters({
+                'prompt': 'consent'
+            });
+            
+            const userCredential = await signInWithPopup(auth, googleProvider);
+            const token = await userCredential.user.getIdToken();
+            localStorage.setItem('firebaseToken', token);
+            return userCredential.user;
+        } catch (error: unknown) {
+            const authError = error as { code?: string; message?: string };
+            // Handle popup blocked or other popup-related errors
+            if (authError.code === 'auth/popup-blocked' || authError.code === 'auth/popup-closed-by-user') {
+                throw new Error('Popup was blocked or closed. Please try again or check your browser settings.');
+            }
+            throw error;
+        }
     },
 
     // Sign Out

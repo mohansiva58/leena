@@ -185,7 +185,7 @@ export function Header() {
                   to="/shop?filter=bestseller"
                   className="text-xs font-medium uppercase tracking-[0.15em] text-foreground hover:text-[#02013f] transition-colors"
                 >
-                  Bestsellers
+                  On Sale
                 </Link>
                 <Link
                   to="/about"
@@ -203,13 +203,12 @@ export function Header() {
                     My Orders
                   </Link>
                 )}
-                <Link
-                  to="/contact"
-                  className={`text-xs font-medium uppercase tracking-[0.15em] transition-colors ${location.pathname === '/contact' ? 'text-[#02013f]' : 'text-foreground hover:text-[#02013f]'
-                    }`}
+                <a
+                  href="#contact"
+                  className="text-xs font-medium uppercase tracking-[0.15em] text-foreground transition-colors hover:text-[#02013f]"
                 >
                   Contact
-                </Link>
+                </a>
               </div>
             </nav>
 

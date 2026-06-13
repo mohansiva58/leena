@@ -1,9 +1,15 @@
 import { motion } from 'framer-motion';
+import { useLocation } from 'react-router-dom';
 
 export function WhatsAppButton() {
+  const location = useLocation();
   const phoneNumber = '+919032624257';
   const message = 'Hi! I\'m interested in your ethnic wear collection.';
   const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+
+  if (location.pathname === '/developedby-sybarites') {
+    return null;
+  }
 
   return (
     <motion.a

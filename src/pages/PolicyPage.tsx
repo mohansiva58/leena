@@ -4,8 +4,6 @@ import { SEO } from '@/components/SEO';
 import { seoConfig } from '@/lib/seoConfig';
 import { 
   Mail, 
-  MapPin, 
-  Phone, 
   ShieldAlert, 
   Ban, 
   AlertTriangle, 
@@ -245,7 +243,7 @@ export function ContactPage() {
             email: 'leenabyalekhya@gmail.com',
             address: {
               '@type': 'PostalAddress',
-              streetAddress: 'T.C. 22/2463-1',
+              // streetAddress: 'T.C. 22/2463-1',
               addressLocality: 'Ameenpur, Miyapur',
               addressRegion: 'Telangana',
               addressCountry: 'IN',
@@ -255,24 +253,21 @@ export function ContactPage() {
       />
       <Header />
       <main className="pt-24 pb-16">
-        <section className="container mx-auto max-w-6xl px-4">
+        <section className="container mx-auto max-w-4xl px-4">
           <div className="rounded-xl border border-border bg-card p-6 shadow-sm md:p-10">
-            <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
-
-              {/* Left Column: Details */}
               <div className="flex flex-col">
                 <h1 className="font-serif text-3xl font-bold text-foreground sm:text-4xl">
                   Leena
                 </h1>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Leena Designer Boutique and Retail Outlet
+                  AD Enterprises
                 </p>
 
                 {/* Address Box */}
                 <div className="mt-8 rounded-lg border border-border bg-secondary/50 p-6">
                   <p className="text-sm leading-relaxed text-foreground">
-                    T.C. 22/2463-1<br />
-                    Ameenpur, Miyapur, Telangana
+                    <br />
+                    Telangana
                   </p>
                 </div>
 
@@ -280,17 +275,17 @@ export function ContactPage() {
                 <div className="mt-6 flex-1 rounded-lg border border-border p-6 text-sm">
                   <div className="grid grid-cols-[120px_1fr] gap-4 sm:grid-cols-[140px_1fr]">
 
-                    <div className="text-muted-foreground">Customer Care</div>
-                    <div className="space-y-1">
+                    {/* <div className="text-muted-foreground">Customer Care</div> */}
+                    {/* <div className="space-y-1"> */}
                       {/* <p>Phone: <a href="tel:+919032624257" className="text-blue-600 hover:text-blue-700 hover:underline">9032624257</a></p> */}
                       {/* <p>WhatsApp: <a href="https://wa.me/919032624257" className="text-blue-600 hover:text-blue-700 hover:underline">9032624257</a></p> */}
-                      <p>Email: <a href="mailto:leenabyalekhya@gmail.com" className="text-blue-600 hover:text-blue-700 hover:underline">leenabyalekhya@gmail.com</a></p>
-                    </div>
+                      {/* <p>Email: <a href="mailto:leenabyalekhya@gmail.com" className="text-blue-600 hover:text-blue-700 hover:underline">leenabyalekhya@gmail.com</a></p>
+                    </div> */}
 
-                    <div className="text-muted-foreground mt-4">Opening Hours</div>
+                    {/* <div className="text-muted-foreground mt-4">Opening Hours</div>
                     <div className="mt-4">
                       <p>Everyday, 9:00 AM – 6:00 PM</p>
-                    </div>
+                    </div> */}
 
                   
 
@@ -303,9 +298,6 @@ export function ContactPage() {
 
                   {/* Buttons */}
                   <div className="mt-8 flex flex-wrap gap-3">
-                    <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer" className="rounded-full bg-secondary px-5 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-blue-50 hover:text-blue-600 border border-transparent hover:border-blue-200">
-                      Open In Google Maps
-                    </a>
                     {/* <a href="tel:+919032624257" className="rounded-full bg-secondary px-5 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-blue-50 hover:text-blue-600 border border-transparent hover:border-blue-200">
                       Call Customer Care
                     </a> */}
@@ -315,20 +307,6 @@ export function ContactPage() {
                   </div>
                 </div>
               </div>
-
-              {/* Right Column: Map */}
-              <div className="relative min-h-[400px] overflow-hidden rounded-xl border border-border lg:min-h-[600px]">
-                <iframe
-                  title="Google Maps Location"
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d30436.50739563125!2d78.31298644977275!3d17.528341859760953!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bcb8d6f37b22be7%3A0xfdd9ac4ad5b0b7b2!2sAmeenpur%2C%20Miyapur%2C%20Hyderabad%2C%20Telangana!5e0!3m2!1sen!2sin!4v1779161324111!5m2!1sen!2sin"
-                  className="absolute inset-0 h-full w-full border-0"
-                  allowFullScreen
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                ></iframe>
-              </div>
-
-            </div>
           </div>
         </section>
       </main>

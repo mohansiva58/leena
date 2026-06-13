@@ -42,7 +42,7 @@ const Index = () => {
             email: 'leenabyalekhya@gmail.com',
             address: {
               '@type': 'PostalAddress',
-              streetAddress: 'T.C. 22/2463-1',
+              // streetAddress: 'T.C. 22/2463-1',
               addressLocality: 'Ameenpur, Miyapur',
               addressRegion: 'Telangana',
               addressCountry: 'IN',
@@ -68,10 +68,11 @@ const Index = () => {
         <Marquee />
         <CategorySection />
         <SalesSection />
-        <ProductSection title="Best Selling" subtitle="Most Loved Pieces" filter="bestseller" />
         {/* <ProductSection title="Dinu's Collections" subtitle="Exclusive Designer Wear" category="Dinu's Collections" /> */}
         {/* <ProductSection title="Premium Collection" subtitle="Handcrafted Luxury" featured={true} /> */}
         <ProductSection title="New Arrivals" subtitle="Latest Trends" filter="new" />
+        <ProductSection title="On Sale" subtitle="Most Loved Pieces" filter="bestseller" />
+
       </main>
       <Footer />
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />

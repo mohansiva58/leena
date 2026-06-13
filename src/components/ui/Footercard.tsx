@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Instagram, Mail, Phone, MapPin } from 'lucide-react';
+import { Clock, Instagram, Mail, MapPin } from 'lucide-react';
 import { motion } from 'framer-motion';
 import logo from '@/assets/logo.png';
 
@@ -38,22 +38,32 @@ export default function Footercard() {
                         </div>
                     </div>
 
-                    {/* Quick Links */}
-                    {/* <div>
-                        <h4 className="font-serif text-lg font-semibold mb-4">Quick Links</h4>
+                    {/* Shop */}
+                    <div>
+                        <h4 className="font-serif text-lg font-semibold mb-4">Shop</h4>
                         <ul className="space-y-3">
-                            {['New Arrivals', 'Bestsellers', 'Dresses', 'Tops', 'Sale'].map((item) => (
-                                <li key={item}>
-                                    <Link
-                                        to="/shop"
-                                        className="text-muted-foreground hover:text-[#02013f] transition-colors text-sm"
-                                    >
-                                        {item}
-                                    </Link>
-                                </li>
-                            ))}
+                            <li>
+                                <Link to="/shop" className="text-muted-foreground hover:text-[#02013f] transition-colors text-sm">
+                                    Shop All
+                                </Link>
+                            </li>
+                            <li>
+                                <Link to="/shop?filter=new" className="text-muted-foreground hover:text-[#02013f] transition-colors text-sm">
+                                    New Arrivals
+                                </Link>
+                            </li>
+                            <li>
+                                <Link to="/shop?filter=bestseller" className="text-muted-foreground hover:text-[#02013f] transition-colors text-sm">
+                                    On Sale
+                                </Link>
+                            </li>
+                            <li>
+                                <Link to="/about" className="text-muted-foreground hover:text-[#02013f] transition-colors text-sm">
+                                    About
+                                </Link>
+                            </li>
                         </ul>
-                    </div> */}
+                    </div>
 
                     {/* Customer Care */}
                     <div>
@@ -74,30 +84,31 @@ export default function Footercard() {
                                     Terms & Conditions
                                 </Link>
                             </li>
-                            <li>
-                                <Link to="/contact" className="text-muted-foreground hover:text-[#02013f] transition-colors text-sm">
-                                    Contact Us
-                                </Link>
-                            </li>
                         </ul>
                     </div>
 
                     {/* Contact Info */}
-                    <div>
-                        <h4 className="font-serif text-lg font-semibold mb-4">Get In Touch</h4>
+                    <div id="contact">
+                        <h4 className="font-serif text-lg font-semibold mb-4">Contact</h4>
+                        <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
+                            AD Enterprises
+                        </p>
                         <ul className="space-y-3">
-                            {/* <li className="flex items-center gap-3 text-muted-foreground text-sm">
-                                <Phone size={16} className="text-[#02013f]" />
-                                <a href="tel:+919032624257" className="hover:underline hover:text-[#02013f] transition-colors font-medium">9032624257</a>
-                            </li> */}
                             <li className="flex items-center gap-3 text-muted-foreground text-sm">
-                                <Mail size={16} className="text-[#02013f]" />
+                                <Mail size={16} className="shrink-0 text-[#02013f]" />
                                 <a href="mailto:leenabyalekhya@gmail.com" className="hover:underline hover:text-[#02013f] transition-colors">leenabyalekhya@gmail.com</a>
                             </li>
                             <li className="flex items-start gap-3 text-muted-foreground text-sm">
-                                <MapPin size={16} className="text-[#02013f] mt-0.5" />
-                                Ameenpur, Miyapur, Telangana, India
+                                <MapPin size={16} className="mt-0.5 shrink-0 text-[#02013f]" />
+                                <span>
+                                    
+                                    Telangana, India
+                                </span>
                             </li>
+                            {/* <li className="flex items-start gap-3 text-muted-foreground text-sm">
+                                <Clock size={16} className="mt-0.5 shrink-0 text-[#02013f]" />
+                                <span>Everyday, 9:00 AM - 6:00 PM</span>
+                            </li> */}
                         </ul>
                     </div>
                 </div>

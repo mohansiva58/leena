@@ -1,9 +1,7 @@
 import { motion } from 'framer-motion';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import aboutimage from '@/assets/image.png';
-import abt from '@/assets/abt2.jpeg';
-import logo from '@/assets/logo.png'
+import logo from '@/assets/logo.png';
 import { SEO } from '@/components/SEO';
 import { seoConfig } from '@/lib/seoConfig';
 export default function AboutPage() {
@@ -25,7 +23,7 @@ export default function AboutPage() {
             />
             <Header />
             <main className="pt-24 pb-16">
-                <section className="py-12 px-6 md:px-12 lg:px-24 bg-secondary rounded-3xl mx-4 md:mx-8">
+                <section className="py-12 px-6 md:px-12 lg:px-24 bg-secondary rounded-3xl mx-4 md:mx-8 font-sans">
                     <div className="max-w-7xl mx-auto">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
                             <motion.div
@@ -76,14 +74,14 @@ export default function AboutPage() {
 
                                 <h2 className="text-4xl md:text-5xl font-light text-foreground leading-tight mb-8">
                                     Crafted with passion,{' '}
-                                    <span className="italic">worn with pride</span>
+                                    <span>worn with pride</span>
                                 </h2>
 
-                                <p className="text-muted-foreground text-lg leading-relaxed mb-8">
+                                <p className="text-base leading-relaxed text-muted-foreground sm:text-lg mb-8">
                                     Leena was born out of passion, courage, and a dream to create beautiful outfits that make every woman feel confident and elegant. Founded by Alekhya, an IT professional and a mom, Leena started as a passion-driven journey alongside managing career, motherhood, and everyday life
                                 </p>
 
-                                <p className="text-muted-foreground leading-relaxed mb-10">
+                                <p className="text-base leading-relaxed text-muted-foreground sm:text-lg mb-10">
                                     At Leena, we believe fashion should feel as unique as the women who wear it. That’s why we carefully curate and create exclusive designer-inspired collections that are thoughtfully selected for their elegance, quality, and individuality. Every piece is chosen to offer something distinctive, ensuring our customers discover styles that stand out and are not commonly found elsewhere. Our goal is to bring unique fashion experiences to women who appreciate timeless designs, modern trends, and the confidence that comes from wearing something truly special.                                </p>
 
                                 <div className="flex flex-wrap gap-12">

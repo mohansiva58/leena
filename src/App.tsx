@@ -21,6 +21,7 @@ const WishlistPage = lazy(() => import("./pages/WishlistPage"));
 const ProcessingPage = lazy(() => import("./pages/ProcessingPage"));
 const OrderSuccessPage = lazy(() => import("./pages/OrderSuccessPage"));
 const PaymentFailedPage = lazy(() => import("./pages/PaymentFailedPage"));
+const DevelopedBySybaritesPage = lazy(() => import("./pages/DevelopedBySybaritesPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 import { WhatsAppButton } from "./components/WhatsAppButton";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -62,6 +63,7 @@ const App = () => (
               <Route path="/terms-and-conditions" element={<TermsPage />} />
               <Route path="/refund-return-policy" element={<RefundPolicyPage />} />
               <Route path="/contact" element={<ContactPage />} />
+              <Route path="/developedby-sybarites" element={<DevelopedBySybaritesPage />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

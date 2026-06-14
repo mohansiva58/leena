@@ -46,20 +46,16 @@ export const authService = {
     signInWithGoogle: async () => {
         try {
             // Configure Google provider for popup authentication
-            googleProvider.setCustomParameters({
-                'prompt': 'consent'
-            });
+            // Removed 'prompt': 'consent' to avoid forcing consent every time, which can cause popup issues
+            googleProvider.setCustomParameters({});
             
             const userCredential = await signInWithPopup(auth, googleProvider);
             const token = await userCredential.user.getIdToken();
             localStorage.setItem('firebaseToken', token);
             return userCredential.user;
         } catch (error: unknown) {
-            const authError = error as { code?: string; message?: string };
-            // Handle popup blocked or other popup-related errors
-            if (authError.code === 'auth/popup-blocked' || authError.code === 'auth/popup-closed-by-user') {
-                throw new Error('Popup was blocked or closed. Please try again or check your browser settings.');
-            }
+            // Re-throw the original Firebase error instead of wrapping it
+            // so that getPopupErrorMessage can handle it properly
             throw error;
         }
     },

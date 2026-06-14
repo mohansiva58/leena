@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { ProductCard } from './ProductCard';
+import { ProductCardSkeleton } from './ProductCardSkeleton';
 import { productService } from '@/services/productService';
 import { Product } from '@/lib/products';
 
@@ -51,11 +52,15 @@ export function ProductSection({ title, subtitle, category, filter, featured }: 
 
   if (loading) {
     return (
-      <section className="py-12 bg-white border-b border-border/50">
-        <div className="mx-auto max-w-7xl px-4 md:px-8 text-center">
+      <section className="py-12 sm:py-16 bg-white border-b border-border/50">
+        <div className="mx-auto max-w-7xl px-4 md:px-8">
+          <div className="text-center mb-10">
+            <div className="h-3 w-32 mx-auto mb-3 bg-secondary animate-pulse rounded" />
+            <div className="h-8 w-48 mx-auto bg-secondary animate-pulse rounded" />
+          </div>
           <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="w-full h-72 bg-secondary/50 animate-pulse" />
+              <ProductCardSkeleton key={i} index={i} />
             ))}
           </div>
         </div>

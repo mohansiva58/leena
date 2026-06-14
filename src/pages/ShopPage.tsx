@@ -5,6 +5,7 @@ import { SlidersHorizontal, X, ChevronDown } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { ProductCard } from '@/components/ProductCard';
+import { ProductCardSkeleton } from '@/components/ProductCardSkeleton';
 import { sizes, categories, Product } from '@/lib/products';
 import { productService } from '@/services/productService';
 import { useRealTimeStock } from '@/hooks/useRealTimeStock';
@@ -446,7 +447,7 @@ export default function ShopPage() {
               {loading ? (
                 <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3">
                   {[1, 2, 3, 4, 5, 6].map(i => (
-                    <div key={i} className="aspect-square bg-secondary/30 rounded-[2rem] animate-pulse" />
+                    <ProductCardSkeleton key={i} index={i} />
                   ))}
                 </div>
               ) : error ? (

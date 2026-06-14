@@ -42,7 +42,7 @@ const slides: HeroSlide[] = [
   {
     id: "designer",
     name: "Designer Wear",
-    bgColor: "#cac33bff",
+    bgColor: "rgb(176, 103, 183)",
     description: "Statement pieces with soft movement and beautiful finishes. Redefining modern luxury for the contemporary woman.",
     themeText: "DESIGNER",
     heroImage: "/image2.png",

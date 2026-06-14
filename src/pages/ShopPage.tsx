@@ -229,7 +229,7 @@ export default function ShopPage() {
                   : filterParam === 'new'
                     ? 'The New Collection'
                     : filterParam === 'bestseller'
-                      ? 'Our Bestsellers'
+                      ? 'ON SALE'
                       : categoryParam
                         ? categoryParam
                         : 'Shop All'}

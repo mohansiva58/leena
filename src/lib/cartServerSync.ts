@@ -1,4 +1,5 @@
 import { cartService, Cart, ServerCartItem } from '@/services/cartService';
+import { productService } from '@/services/productService';
 import { useCartStore, getProductId, getCartItemImage, type CartItem } from '@/lib/cart';
 import type { Product } from '@/lib/products';
 import axios from 'axios';
@@ -30,7 +31,8 @@ function getServerQuantityForLocal(serverItems: ServerCartItem[], localRow: Cart
     .reduce((sum, item) => sum + item.quantity, 0);
 }
 
-function serverLineToProduct(line: ServerCartItem): Product {
+function serverLineToProduct(line: ServerCartItem, maxAvailable?: number): Product {
+  const available = maxAvailable ?? 0;
   return {
     productId: line.productId,
     id: line.productId,
@@ -38,27 +40,73 @@ function serverLineToProduct(line: ServerCartItem): Product {
     price: line.price,
     image: line.image,
     category: 'Catalog',
-    sizes: ['Default'],
+    sizes: [line.size],
     description: '',
     rating: 0,
     reviews: 0,
-    stock: 99999,
+    stock: available,
+    sizeCounts: { [line.size]: available },
+    sizeReservedCounts: { [line.size]: 0 },
   };
 }
 
-export function applyServerCartToLocal(cart: Cart | null | undefined) {
+async function fetchStockLimits(items: ServerCartItem[]) {
+  const limits = new Map<string, number>();
+  if (!items.length) return limits;
+
+  try {
+    const availability = await cartService.getAvailability();
+    for (const row of availability.items) {
+      limits.set(`${row.productId}-${row.size}`, row.maxAvailable);
+    }
+    return limits;
+  } catch {
+    // Guest carts or auth failures fall back to public stock check.
+  }
+
+  try {
+    const result = await productService.checkStockAvailability(
+      items.map((item) => ({
+        productId: item.productId,
+        size: item.size,
+        quantity: item.quantity,
+      }))
+    );
+    for (const row of result.items) {
+      limits.set(`${row.productId}-${row.size}`, row.maxAvailable);
+    }
+  } catch {
+    // Fall back to zero limits so local quantity increases stay blocked.
+  }
+
+  return limits;
+}
+
+export function applyServerCartToLocal(cart: Cart | null | undefined, stockLimits?: Map<string, number>) {
   const store = useCartStore.getState();
   store.clearCart();
 
   for (const item of cart?.items || []) {
+    const maxAvailable = stockLimits?.get(`${item.productId}-${item.size}`);
+    const safeQuantity =
+      maxAvailable !== undefined ? Math.min(item.quantity, Math.max(0, maxAvailable)) : item.quantity;
+
+    if (safeQuantity <= 0) continue;
+
     store.addItem(
-      serverLineToProduct(item),
+      serverLineToProduct(item, maxAvailable),
       item.size,
-      item.quantity,
+      safeQuantity,
       item.variantImage || item.image,
       item.color
     );
   }
+}
+
+export async function applyServerCartToLocalWithStock(cart: Cart | null | undefined) {
+  const stockLimits = await fetchStockLimits(cart?.items || []);
+  applyServerCartToLocal(cart, stockLimits);
+  return stockLimits;
 }
 
 function buildServerQuantityMap(items: ServerCartItem[] = []) {
@@ -77,7 +125,7 @@ export async function mergeLocalCartToServer() {
 
   if (!localItems.length) {
     if (serverCart.items?.length) {
-      applyServerCartToLocal(serverCart);
+      await applyServerCartToLocalWithStock(serverCart);
     }
     return serverCart;
   }
@@ -88,28 +136,39 @@ export async function mergeLocalCartToServer() {
     const serverQty = getServerQuantityForLocal(serverCart.items, row);
     const delta = row.quantity - serverQty;
 
-    if (delta <= 0) continue;
-
-    try {
-      await cartService.addToCart(pid, row.size, delta, image, row.color);
-      const key = serverLineKey(pid, row.size, row.color, image);
-      serverQuantities.set(key, serverQty + delta);
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        if (error.response?.status === 404) {
-          useCartStore.getState().removeItem(pid, row.size, image, row.color);
-          continue;
+    if (delta > 0) {
+      try {
+        await cartService.addToCart(pid, row.size, delta, image, row.color);
+        const key = serverLineKey(pid, row.size, row.color, image);
+        serverQuantities.set(key, serverQty + delta);
+      } catch (error) {
+        if (axios.isAxiosError(error)) {
+          if (error.response?.status === 404) {
+            useCartStore.getState().removeItem(pid, row.size, image, row.color);
+            continue;
+          }
+          if (error.response?.status === 400) {
+            continue;
+          }
         }
-        if (error.response?.status === 400) {
-          continue;
-        }
+        throw error;
       }
-      throw error;
+    } else if (delta < 0) {
+      try {
+        await cartService.updateCartItem(pid, row.size, row.quantity, row.color, image);
+        const key = serverLineKey(pid, row.size, row.color, image);
+        serverQuantities.set(key, row.quantity);
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 400) {
+          continue;
+        }
+        throw error;
+      }
     }
   }
 
   const refreshed = await cartService.getCart();
-  applyServerCartToLocal(refreshed);
+  await applyServerCartToLocalWithStock(refreshed);
   return refreshed;
 }
 
@@ -120,7 +179,7 @@ export async function ensureLocalCartSyncedToServer() {
 
 export async function refreshLocalCartFromServer() {
   const cart = await cartService.getCart();
-  applyServerCartToLocal(cart);
+  await applyServerCartToLocalWithStock(cart);
   return cart;
 }
 

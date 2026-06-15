@@ -47,10 +47,21 @@ export function LogoLoader({ className, size = 'md' }: LoaderProps) {
     );
 }
 
-export function PageLoader() {
+interface PageLoaderProps {
+    message?: string;
+    submessage?: string;
+}
+
+export function PageLoader({ message, submessage }: PageLoaderProps) {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background/90 backdrop-blur-sm px-6 text-center">
             <LogoLoader size="xl" />
+            {message && (
+                <p className="mt-6 text-lg font-semibold text-foreground">{message}</p>
+            )}
+            {submessage && (
+                <p className="mt-2 max-w-sm text-sm text-muted-foreground">{submessage}</p>
+            )}
         </div>
     );
 }

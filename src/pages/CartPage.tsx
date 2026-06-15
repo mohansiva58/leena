@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Minus, Plus, Trash2, ShoppingCart, ArrowRight, ChevronLeft } from 'lucide-react';
@@ -7,13 +7,65 @@ import { Footer } from '@/components/Footer';
 import { useCartStore, getProductId, getCartItemImage, getCartLineKey } from '@/lib/cart';
 import { useAuth } from '@/hooks/useAuth';
 import { cartService } from '@/services/cartService';
-import { applyServerCartToLocal, notifyCartChangedAcrossTabs } from '@/lib/cartServerSync';
+import { productService } from '@/services/productService';
+import { applyServerCartToLocalWithStock, notifyCartChangedAcrossTabs } from '@/lib/cartServerSync';
 import { toast } from 'sonner';
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, getTotalPrice, clearCart } = useCartStore();
   const { isAuthenticated } = useAuth();
   const [promoCode, setPromoCode] = useState('');
+  const [stockLimits, setStockLimits] = useState<Record<string, number>>({});
+  const [loadingStock, setLoadingStock] = useState(false);
+
+  const refreshStockLimits = useCallback(async () => {
+    if (items.length === 0) {
+      setStockLimits({});
+      return;
+    }
+
+    setLoadingStock(true);
+    try {
+      if (isAuthenticated) {
+        const availability = await cartService.getAvailability();
+        const limits: Record<string, number> = {};
+        availability.items.forEach((row) => {
+          limits[`${row.productId}-${row.size}`] = row.maxAvailable;
+        });
+        setStockLimits(limits);
+
+        const overLimit = availability.items.some((row) => !row.available);
+        if (overLimit) {
+          const cart = await cartService.getCart();
+          await applyServerCartToLocalWithStock(cart);
+          notifyCartChangedAcrossTabs();
+          toast.message('Some quantities were adjusted to match available stock.');
+        }
+        return;
+      }
+
+      const result = await productService.checkStockAvailability(
+        items.map((item) => ({
+          productId: getProductId(item.product) || '',
+          size: item.size,
+          quantity: item.quantity,
+        }))
+      );
+      const limits: Record<string, number> = {};
+      result.items.forEach((row) => {
+        limits[`${row.productId}-${row.size}`] = row.maxAvailable;
+      });
+      setStockLimits(limits);
+    } catch {
+      setStockLimits({});
+    } finally {
+      setLoadingStock(false);
+    }
+  }, [isAuthenticated, items]);
+
+  useEffect(() => {
+    refreshStockLimits();
+  }, [refreshStockLimits]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -24,7 +76,7 @@ export default function CartPage() {
     try {
       const cart = await action();
       if (cart && typeof cart === 'object' && 'items' in cart) {
-        applyServerCartToLocal(cart as Awaited<ReturnType<typeof cartService.getCart>>);
+        await applyServerCartToLocalWithStock(cart as Awaited<ReturnType<typeof cartService.getCart>>);
       }
       notifyCartChangedAcrossTabs();
       return true;
@@ -45,12 +97,28 @@ export default function CartPage() {
   };
 
   const handleUpdateQuantity = async (productId: string, size: string, quantity: number, variantImage?: string, color?: string) => {
-    if (!isAuthenticated) {
-      updateQuantity(productId, size, quantity, variantImage, color);
+    const lineKey = `${productId}-${size}`;
+    const maxAvailable = stockLimits[lineKey];
+
+    if (quantity > 1 && maxAvailable !== undefined && quantity > maxAvailable) {
+      toast.error(`Only ${maxAvailable} available for size ${size}`);
       return;
     }
 
-    await syncCartAction(() => cartService.updateCartItem(productId, size, Math.max(1, quantity), color, variantImage));
+    if (!isAuthenticated) {
+      const updated = updateQuantity(productId, size, quantity, variantImage, color);
+      if (!updated) {
+        toast.error(maxAvailable !== undefined
+          ? `Only ${maxAvailable} available for size ${size}`
+          : 'Unable to update quantity');
+      }
+      return;
+    }
+
+    const success = await syncCartAction(() => cartService.updateCartItem(productId, size, Math.max(1, quantity), color, variantImage));
+    if (success) {
+      await refreshStockLimits();
+    }
   };
 
   const handleClearCart = async () => {
@@ -152,6 +220,9 @@ export default function CartPage() {
                 {items.map((item, index) => {
                   const productId = getProductId(item.product);
                   const itemImage = getCartItemImage(item);
+                  const lineKey = `${productId}-${item.size}`;
+                  const maxAvailable = stockLimits[lineKey];
+                  const atMaxStock = maxAvailable !== undefined && item.quantity >= maxAvailable;
                   return (
                     <motion.div
                       key={getCartLineKey(productId, item.size, itemImage)}
@@ -193,6 +264,13 @@ export default function CartPage() {
                                   Color: {item.color}
                                 </p>
                               )}
+                              {maxAvailable !== undefined && maxAvailable <= 5 && (
+                                <p className={`text-xs mt-1 ${atMaxStock ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                                  {atMaxStock
+                                    ? `Only ${maxAvailable} in stock — max reached`
+                                    : `${maxAvailable} left in stock`}
+                                </p>
+                              )}
 
                             </div>
                             <motion.button
@@ -221,7 +299,8 @@ export default function CartPage() {
                               <motion.button
                                 whileTap={{ scale: 0.9 }}
                                 onClick={() => handleUpdateQuantity(productId, item.size, item.quantity + 1, itemImage, item.color)}
-                                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-primary/20 transition-colors"
+                                disabled={atMaxStock || loadingStock}
+                                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-primary/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 <Plus size={14} />
                               </motion.button>

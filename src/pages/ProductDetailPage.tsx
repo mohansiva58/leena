@@ -34,7 +34,7 @@ import { useRealTimeStock } from '@/hooks/useRealTimeStock';
 import { productService } from '@/services/productService';
 import { saleService } from '@/services/saleService';
 import { cartService } from '@/services/cartService';
-import { applyServerCartToLocal, notifyCartChangedAcrossTabs } from '@/lib/cartServerSync';
+import { applyServerCartToLocalWithStock, notifyCartChangedAcrossTabs } from '@/lib/cartServerSync';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SEO } from '@/components/SEO';
 import { seoConfig } from '@/lib/seoConfig';
@@ -89,9 +89,11 @@ export default function ProductDetailPage() {
     enabled: !!product,
   });
 
-  const addItem = useCartStore(
-    (state) => state.addItem
-  );
+  const { isAuthenticated } = useAuth();
+  const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlistStore();
+  const isWishlisted = isInWishlist(id || '');
+
+  const [pendingAuthAction, setPendingAuthAction] = useState<'add' | 'buy' | null>(null);
 
   const updateBulkSizeCount = (size: string, delta: number) => {
     setSizeCounts((current) => {
@@ -125,7 +127,7 @@ export default function ProductDetailPage() {
     return [{ size: selectedSize, quantity }];
   };
 
-  const addSelectionsToCart = async () => {
+  const addSelectionsToCart = async (options?: { skipAuthCheck?: boolean }) => {
     if (!product) return false;
 
     const selections = getSelectedSizeEntries();
@@ -170,46 +172,28 @@ export default function ProductDetailPage() {
       }
     }
 
-    if (isAuthenticated) {
-      try {
-        const cart = await cartService.addToCart(
-          productId,
-          selections[0].size,
-          selections[0].quantity,
-          cartImage,
-          selectedColor || undefined,
-          selections
-        );
-        applyServerCartToLocal(cart);
-        notifyCartChangedAcrossTabs();
-        return true;
-      } catch (error: unknown) {
-        const apiError = error as { response?: { data?: { error?: string } } };
-        toast.error(apiError.response?.data?.error || 'Failed to add item to cart');
-        return false;
-      }
+    if (!options?.skipAuthCheck && !isAuthenticated) {
+      return false;
     }
 
-    for (const selection of selections) {
-      const success = addItem(
-        product,
-        selection.size,
-        selection.quantity,
+    try {
+      const cart = await cartService.addToCart(
+        productId,
+        selections[0].size,
+        selections[0].quantity,
         cartImage,
-        selectedColor || undefined
+        selectedColor || undefined,
+        selections
       );
-
-      if (!success) {
-        return false;
-      }
+      await applyServerCartToLocalWithStock(cart);
+      notifyCartChangedAcrossTabs();
+      return true;
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || 'Failed to add item to cart');
+      return false;
     }
-
-    return true;
   };
-
-  const { isAuthenticated } = useAuth();
-  const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlistStore();
-  const isWishlisted = isInWishlist(id || '');
 
   // Update selected color/image when product loads
   useEffect(() => {
@@ -359,6 +343,18 @@ export default function ProductDetailPage() {
       return;
     }
 
+    const selections = getSelectedSizeEntries();
+    if (selections.length === 0) {
+      toast.error('Please select a size');
+      return;
+    }
+
+    if (!isAuthenticated) {
+      setPendingAuthAction('add');
+      setShowAuthModal(true);
+      return;
+    }
+
     const success = await addSelectionsToCart();
 
     if (success) {
@@ -368,9 +364,9 @@ export default function ProductDetailPage() {
 
   /* BUY NOW */
 
-  const performBuyNow = async () => {
+  const performBuyNow = async (options?: { skipAuthCheck?: boolean }) => {
     useCartStore.getState().clearReservations();
-    const success = await addSelectionsToCart();
+    const success = await addSelectionsToCart(options);
     if (success) {
       navigate('/checkout');
     }
@@ -382,6 +378,7 @@ export default function ProductDetailPage() {
       return;
     }
     if (!isAuthenticated) {
+      setPendingAuthAction('buy');
       setShowAuthModal(true);
       return;
     }
@@ -1167,12 +1164,26 @@ export default function ProductDetailPage() {
 
       <AuthModal
         isOpen={showAuthModal}
-        onClose={() =>
-          setShowAuthModal(false)
-        }
-        onSuccess={() => {
-          if (product) {
-            performBuyNow();
+        onClose={() => {
+          setShowAuthModal(false);
+          setPendingAuthAction(null);
+        }}
+        onSuccess={async () => {
+          setShowAuthModal(false);
+          if (!product) return;
+
+          if (pendingAuthAction === 'buy') {
+            setPendingAuthAction(null);
+            await performBuyNow({ skipAuthCheck: true });
+            return;
+          }
+
+          if (pendingAuthAction === 'add') {
+            setPendingAuthAction(null);
+            const success = await addSelectionsToCart({ skipAuthCheck: true });
+            if (success) {
+              toast.success('Added to cart');
+            }
           }
         }}
       />

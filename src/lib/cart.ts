@@ -45,7 +45,9 @@ const getAvailableStockForSize = (product: Product, size: string): number | unde
     return Math.max(0, total - reserved);
   }
 
-  return typeof product.stock === 'number' ? Math.max(0, product.stock) : undefined;
+  // Without per-size counts, do not fall back to total stock — that allows
+  // ordering more than one size's availability (e.g. 2× M when only 1 M left).
+  return undefined;
 };
 
 export const useCartStore = create<CartStore>()(
@@ -57,7 +59,7 @@ export const useCartStore = create<CartStore>()(
 
       addItem: (product, size, quantity = 1, variantImage, color) => {
         const availableForSize = getAvailableStockForSize(product, size);
-        if (availableForSize !== undefined && availableForSize <= 0) {
+        if (availableForSize === undefined || availableForSize <= 0) {
           return false;
         }
 
@@ -73,7 +75,7 @@ export const useCartStore = create<CartStore>()(
 
           const totalQuantity = existingItem ? existingItem.quantity + quantity : quantity;
 
-          if (availableForSize !== undefined && totalQuantity > availableForSize) {
+          if (totalQuantity > availableForSize) {
             return state;
           }
 
@@ -124,7 +126,7 @@ export const useCartStore = create<CartStore>()(
         if (!item) return false;
 
         const availableForSize = getAvailableStockForSize(item.product, size);
-        if (availableForSize !== undefined && quantity > availableForSize) {
+        if (availableForSize === undefined || quantity > availableForSize) {
           return false;
         }
 

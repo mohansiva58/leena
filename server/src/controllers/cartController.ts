@@ -6,6 +6,7 @@ import Product from '../models/Product';
 import Sale from '../models/Sale';
 import { cacheSet, cacheDel, CACHE_TTL } from '../utils/cache';
 import { resolveSizeQuantities } from '../utils/sizeQuantities';
+import StockReservation from '../models/StockReservation';
 
 interface ImageItem {
     image: string;
@@ -71,6 +72,29 @@ const getAvailableForSize = (item: { stock?: number; sizeCounts?: unknown; sizeR
     }
 
     return Math.max(0, Number(item.stock || 0));
+};
+
+async function getUserReservedQuantities(userId: string): Promise<Map<string, number>> {
+    const reservations = await StockReservation.find({
+        userId,
+        status: 'reserved',
+        expiresAt: { $gt: new Date() },
+    }).lean();
+
+    const quantities = new Map<string, number>();
+    for (const reservation of reservations) {
+        const key = `${reservation.productId}:${reservation.size}`;
+        quantities.set(key, (quantities.get(key) || 0) + reservation.quantity);
+    }
+    return quantities;
+}
+
+const getPurchasableForSize = (
+    item: { stock?: number; sizeCounts?: unknown; sizeReservedCounts?: unknown },
+    size: string,
+    ownReserved = 0
+): number => {
+    return Math.max(0, getAvailableForSize(item, size) + ownReserved);
 };
 
 const removeMissingCartItems = async (cart: ICart | null): Promise<ICart | null> => {
@@ -333,6 +357,7 @@ export const getCartAvailability = async (req: AuthRequest, res: Response): Prom
         const items = cart?.items || [];
         const availability = [];
         let allAvailable = true;
+        const ownReservedByLine = await getUserReservedQuantities(userId);
 
         for (const item of items) {
             const resolved = await findCartCatalogItem(item.productId);
@@ -350,17 +375,8 @@ export const getCartAvailability = async (req: AuthRequest, res: Response): Prom
             }
 
             const catalogItem = resolved.item;
-            const rawSizeCounts = 'sizeCounts' in catalogItem ? catalogItem.sizeCounts : undefined;
-            const rawReservedCounts = 'sizeReservedCounts' in catalogItem ? catalogItem.sizeReservedCounts : undefined;
-            const sizeCounts = rawSizeCounts instanceof Map ? Object.fromEntries(rawSizeCounts) : rawSizeCounts as Record<string, number> | undefined;
-            const reservedCounts = rawReservedCounts instanceof Map ? Object.fromEntries(rawReservedCounts) : rawReservedCounts as Record<string, number> | undefined;
-            const totalForSize = sizeCounts && typeof sizeCounts === 'object'
-                ? Number(sizeCounts[item.size] || 0)
-                : Number(catalogItem.stock || 0);
-            const reservedForSize = reservedCounts && typeof reservedCounts === 'object'
-                ? Number(reservedCounts[item.size] || 0)
-                : 0;
-            const maxAvailable = Math.max(0, totalForSize - reservedForSize);
+            const ownReserved = ownReservedByLine.get(`${resolved.canonicalId}:${item.size}`) || 0;
+            const maxAvailable = getPurchasableForSize(catalogItem, item.size, ownReserved);
             const isAvailable = maxAvailable >= item.quantity;
 
             if (!isAvailable) allAvailable = false;

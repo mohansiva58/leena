@@ -6,7 +6,7 @@ import { AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { AuthModal } from '@/components/AuthModal';
-import { LogoLoader } from '@/components/ui/loader';
+import { LogoLoader, PageLoader } from '@/components/ui/loader';
 import { useCartStore, getProductId, getCartItemImage } from '@/lib/cart';
 import { useAuth } from '@/hooks/useAuth';
 import { useRealTimeStock } from '@/hooks/useRealTimeStock';
@@ -47,13 +47,14 @@ const isValidIndianPhone = (phone: string) => /^[6-9]\d{9}$/.test(normalizeIndia
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { items, getTotalPrice, clearCart, removeItem } = useCartStore();
+  const { items, getTotalPrice, getTotalItems, clearCart, removeItem } = useCartStore();
   const { isAuthenticated, user } = useAuth();
   useRealTimeStock();
   const { initiatePayment } = useRazorpayCheckout();
   const [step, setStep] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('razorpay');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSecuringItems, setIsSecuringItems] = useState(false);
   const [reservationExpiresAt, setReservationExpiresAt] = useState<Date | null>(null);
   const [reservationSecondsLeft, setReservationSecondsLeft] = useState(0);
 
@@ -71,8 +72,7 @@ export default function CheckoutPage() {
       const currentReservations = store.reservationIds || [];
       if (items.length > 0 && currentReservations.length === 0) {
         const sessionId = store.sessionId;
-        const loadingToastId = 'checkout-reservation';
-        toast.loading('Securing your items...', { id: loadingToastId });
+        setIsSecuringItems(true);
 
         try {
           if (isAuthenticated) {
@@ -106,11 +106,13 @@ export default function CheckoutPage() {
           store.setReservationIds(reservationIds);
           setReservationExpiresAt(new Date(reservation.expiresAt));
           setStockErrors({});
-          toast.success('Items reserved for checkout.', { id: loadingToastId });
+          toast.success('Items reserved for checkout.');
         } catch (err: unknown) {
           const error = err as { response?: { data?: { error?: string } }; message?: string };
-          toast.error(error.response?.data?.error || error.message || 'Some items are out of stock. Returning to cart.', { id: loadingToastId });
+          toast.error(error.response?.data?.error || error.message || 'Some items are out of stock. Returning to cart.');
           setTimeout(() => navigate('/cart'), 1500);
+        } finally {
+          setIsSecuringItems(false);
         }
       } else {
         // Already have reservations - track them for cleanup
@@ -281,10 +283,6 @@ export default function CheckoutPage() {
       setValidatingStock(true);
       setStockErrors({});
 
-      if ((useCartStore.getState().reservationIds || []).length > 0) {
-        return true;
-      }
-
       const itemsToCheck = items.map(item => ({
         productId: getProductId(item.product) || '',
         size: item.size,
@@ -294,6 +292,23 @@ export default function CheckoutPage() {
       if (itemsToCheck.length === 0) {
         toast.error('No valid items in cart');
         return false;
+      }
+
+      if (isAuthenticated) {
+        const availability = await cartService.getAvailability();
+        if (!availability.available) {
+          const errors: Record<string, string> = {};
+          availability.items.forEach((item) => {
+            if (!item.available) {
+              errors[`${item.productId}-${item.size}`] = item.message || `Only ${item.maxAvailable} available`;
+            }
+          });
+          setStockErrors(errors);
+          toast.error('Some items have insufficient stock');
+          return false;
+        }
+        setStockErrors({});
+        return true;
       }
 
       const result = await productService.checkStockAvailability(itemsToCheck);
@@ -1066,7 +1081,7 @@ export default function CheckoutPage() {
                   <h3 className="font-semibold mb-4">Order Summary</h3>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span>Subtotal ({items.length} items)</span>
+                      <span>Subtotal ({getTotalItems()} {getTotalItems() === 1 ? 'item' : 'items'})</span>
                       <span>₹{subtotal.toLocaleString()}</span>
                     </div>
                     {discountAmount > 0 && (
@@ -1112,6 +1127,13 @@ export default function CheckoutPage() {
         isOpen={showAuthModal && !isAuthenticated}
         onClose={() => setShowAuthModal(false)}
       />
+
+      {isSecuringItems && (
+        <PageLoader
+          message="Securing your items..."
+          submessage="We're checking stock and holding your items for checkout. Please don't close this page."
+        />
+      )}
 
       <Footer />
     </div>

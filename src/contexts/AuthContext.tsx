@@ -96,6 +96,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
             setLoading(true);
             await authService.signInWithGoogle();
+            toast.success('Signed in with Google!');
+            api.post('/users/login-notify').catch((err) => console.error('Login notify error:', err));
         } catch (error: unknown) {
             const firebaseError = error as { code: string };
             const errorCode = firebaseError.code;

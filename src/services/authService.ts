@@ -6,7 +6,7 @@ import {
     signOut,
     onAuthStateChanged,
     GoogleAuthProvider,
-    signInWithRedirect,
+    signInWithPopup,
     getRedirectResult,
     User,
 } from 'firebase/auth';
@@ -43,11 +43,13 @@ export const authService = {
         return userCredential.user;
     },
 
-// Google Authentication — redirect avoids COOP popup warnings in dev/production
-    signInWithGoogle: async () => {
+    // Popup sign-in works on Vercel/custom domains without /__/auth proxy setup.
+    signInWithGoogle: async (): Promise<User> => {
         googleProvider.setCustomParameters({});
-        await signInWithRedirect(auth, googleProvider);
-        return null;
+        const result = await signInWithPopup(auth, googleProvider);
+        const token = await result.user.getIdToken();
+        localStorage.setItem('firebaseToken', token);
+        return result.user;
     },
 
     completeRedirectSignIn: async (): Promise<User | null> => {

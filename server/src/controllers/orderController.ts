@@ -11,6 +11,7 @@ import { cacheDel } from '../utils/cache';
 import {
     resolveOrderLines,
     incrementStockForLines,
+    decrementStockForLines,
     RawOrderItemInput,
 } from '../services/orderLineItems';
 import { StockReservationService } from '../services/StockReservationService';
@@ -221,11 +222,14 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
         const orderId = generateOrderId();
 
         let completedReservations = false;
+        const isPaidRazorpay = paymentMethod === 'razorpay' && paymentStatus === 'paid';
         try {
             if (!reservationIds || !Array.isArray(reservationIds) || reservationIds.length === 0) {
                 res.status(409).json({ error: 'Checkout reservation is required. Please refresh your cart and try again.' });
                 return;
             }
+
+            const lineMap = buildLineQuantityMap(lines);
 
             const activeReservations = await StockReservation.find({
                 reservationId: { $in: reservationIds },
@@ -234,35 +238,62 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
                 expiresAt: { $gt: new Date() },
             }).lean();
 
-            if (activeReservations.length !== reservationIds.length) {
+            if (activeReservations.length === reservationIds.length) {
+                const reservationMap = buildLineQuantityMap(activeReservations);
+                if (!sameQuantityMap(lineMap, reservationMap)) {
+                    for (const resId of reservationIds) {
+                        await StockReservationService.releaseStock(resId, 'reservation_mismatch').catch(() => undefined);
+                    }
+                    res.status(409).json({ error: 'Checkout reservation does not match your cart. Please refresh your cart.' });
+                    return;
+                }
+
+                for (const resId of reservationIds) {
+                    const confirmed = await StockReservationService.completeReservation(resId, {
+                        orderId,
+                        paymentId: razorpayPaymentId,
+                    });
+                    if (!confirmed) {
+                        throw new Error('Checkout reservation expired. Please contact support if your payment was captured.');
+                    }
+                }
+                completedReservations = true;
+            } else if (isPaidRazorpay) {
+                const staleReservations = await StockReservation.find({
+                    reservationId: { $in: reservationIds },
+                    userId,
+                    status: 'reserved',
+                }).lean();
+
+                if (staleReservations.length === reservationIds.length) {
+                    const reservationMap = buildLineQuantityMap(staleReservations);
+                    if (!sameQuantityMap(lineMap, reservationMap)) {
+                        throw new Error('Checkout reservation does not match your cart. Please contact support if your payment was captured.');
+                    }
+
+                    for (const resId of reservationIds) {
+                        const confirmed = await StockReservationService.completeReservation(resId, {
+                            orderId,
+                            paymentId: razorpayPaymentId,
+                        }, { allowExpired: true });
+                        if (!confirmed) {
+                            throw new Error('Unable to confirm stock after payment. Please contact support with your payment ID.');
+                        }
+                    }
+                    completedReservations = true;
+                } else {
+                    await decrementStockForLines(lines);
+                    for (const resId of reservationIds) {
+                        await StockReservationService.releaseStock(resId, 'paid_order_fulfilled_directly').catch(() => undefined);
+                    }
+                }
+            } else {
                 for (const resId of reservationIds) {
                     await StockReservationService.releaseStock(resId, 'invalid_checkout').catch(() => undefined);
                 }
                 res.status(409).json({ error: 'Checkout reservation expired. Please return to cart and try again.' });
                 return;
             }
-
-            const lineMap = buildLineQuantityMap(lines);
-            const reservationMap = buildLineQuantityMap(activeReservations);
-
-            if (!sameQuantityMap(lineMap, reservationMap)) {
-                for (const resId of reservationIds) {
-                    await StockReservationService.releaseStock(resId, 'reservation_mismatch').catch(() => undefined);
-                }
-                res.status(409).json({ error: 'Checkout reservation does not match your cart. Please refresh your cart.' });
-                return;
-            }
-
-            for (const resId of reservationIds) {
-                const confirmed = await StockReservationService.completeReservation(resId, {
-                    orderId,
-                    paymentId: razorpayPaymentId,
-                });
-                if (!confirmed) {
-                    throw new Error('Checkout reservation expired. Please contact support if your payment was captured.');
-                }
-            }
-            completedReservations = true;
         } catch (stockErr) {
             if (paymentMethod === 'razorpay' && razorpayPaymentId) {
                 await PaymentClaim.deleteOne({ razorpayPaymentId }).catch(() => undefined);

@@ -6,6 +6,7 @@ export interface RazorpayOrderResponse {
     amount: number;
     currency: string;
     keyId: string;
+    reservationExpiresAt?: string;
 }
 
 export interface PaymentVerificationData {

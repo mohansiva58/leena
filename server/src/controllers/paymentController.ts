@@ -109,11 +109,22 @@ export const createRazorpayOrder = async (req: AuthRequest, res: Response): Prom
             status: 'created',
         });
 
+        let reservationExpiresAt: string | undefined;
+        const reservationIds = orderData?.reservationIds;
+        if (Array.isArray(reservationIds) && reservationIds.length > 0) {
+            const expiresAt = await StockReservationService.extendReservations(
+                reservationIds.map(String),
+                String(userId)
+            );
+            reservationExpiresAt = expiresAt.toISOString();
+        }
+
         res.json({
             orderId: order.id,
             amount: order.amount,
             currency: order.currency,
             keyId,
+            reservationExpiresAt,
         });
     } catch (error) {
         const details = getRazorpayErrorDetails(error);
@@ -156,6 +167,13 @@ export const verifyPayment = async (req: AuthRequest, res: Response): Promise<vo
             }
             res.status(400).json({ error: 'Invalid payment signature' });
             return;
+        }
+
+        if (Array.isArray(reservationIds) && reservationIds.length > 0 && req.user?.uid) {
+            await StockReservationService.extendReservations(
+                reservationIds.map(String),
+                String(req.user.uid)
+            ).catch(() => undefined);
         }
 
         res.json({

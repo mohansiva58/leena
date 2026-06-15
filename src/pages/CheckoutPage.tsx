@@ -58,6 +58,7 @@ export default function CheckoutPage() {
   const [reservationSecondsLeft, setReservationSecondsLeft] = useState(0);
 
   const paymentSucceeded = useRef(false);
+  const paymentInProgress = useRef(false);
 
   // ── Reservation Logic ────────────────────────────────────────────────────
   // Reserve stock when user enters checkout. Release ALL reservations when
@@ -182,6 +183,7 @@ export default function CheckoutPage() {
       const seconds = Math.max(0, Math.floor((reservationExpiresAt.getTime() - Date.now()) / 1000));
       setReservationSecondsLeft(seconds);
       if (seconds === 0) {
+        if (paymentSucceeded.current || paymentInProgress.current) return;
         useCartStore.getState().clearReservations();
         toast.error('Your checkout reservation expired. Please review your cart again.');
         navigate('/cart');
@@ -479,6 +481,7 @@ export default function CheckoutPage() {
     }
 
     setIsProcessing(true);
+    paymentInProgress.current = true;
 
     try {
       if (!isValidIndianPhone(formData.phone)) {
@@ -529,6 +532,9 @@ export default function CheckoutPage() {
           onPaymentAuthorized: () => {
             paymentSucceeded.current = true;
           },
+          onReservationExtended: (expiresAt) => {
+            setReservationExpiresAt(expiresAt);
+          },
           onSuccess: (orderId: string, orderDetails) => {
             // Mark payment as succeeded BEFORE navigating away so the unmount
             // cleanup doesn't try to release reservations (server completed them)
@@ -543,6 +549,7 @@ export default function CheckoutPage() {
             });
           },
           onFailure: (err: unknown) => {
+            paymentInProgress.current = false;
             const error = err as { message?: string };
             setIsProcessing(false);
             if (error.message && !error.message.includes('cancelled')) {
@@ -570,6 +577,7 @@ export default function CheckoutPage() {
         });
       }
     } catch (err: unknown) {
+      paymentInProgress.current = false;
       const error = err as { response?: { data?: { error?: string } } };
       console.error('Order placement failed:', error);
       setIsProcessing(false);

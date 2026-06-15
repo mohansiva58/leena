@@ -66,6 +66,7 @@ interface RazorpayCheckoutProps {
     onSuccess: (orderId: string, orderDetails: CreateOrderData & { total: number; subtotal: number; discount: number }) => void;
     onFailure: (error: unknown) => void;
     onPaymentAuthorized?: () => void;
+    onReservationExtended?: (expiresAt: Date) => void;
     total: number;
     subtotal: number;
     discountAmount: number;
@@ -78,7 +79,7 @@ export const useRazorpayCheckout = () => {
     const inFlight = useRef(false);
     const navigate = useNavigate();
 
-    const initiatePayment = async ({ amount, orderData, onSuccess, onFailure, onPaymentAuthorized, total, subtotal, discountAmount }: RazorpayCheckoutProps) => {
+    const initiatePayment = async ({ amount, orderData, onSuccess, onFailure, onPaymentAuthorized, onReservationExtended, total, subtotal, discountAmount }: RazorpayCheckoutProps) => {
         try {
             if (!user) {
                 throw new Error('Please login to continue');
@@ -91,6 +92,9 @@ export const useRazorpayCheckout = () => {
 
             // Create Razorpay order
             const razorpayOrder = await paymentService.createRazorpayOrder(amount, orderData);
+            if (razorpayOrder.reservationExpiresAt) {
+                onReservationExtended?.(new Date(razorpayOrder.reservationExpiresAt));
+            }
 
             const options = {
                 key: razorpayOrder.keyId,

@@ -7,7 +7,8 @@ import { getIO } from '../socket';
 import { getRedisClient } from '../config/redis';
 import { cacheDel, cacheInvalidatePrefix } from '../utils/cache';
 
-const DEFAULT_RESERVATION_TTL_SECONDS = Number(process.env.INVENTORY_RESERVATION_TTL_SECONDS || 1 * 60);
+const DEFAULT_RESERVATION_TTL_SECONDS = Number(process.env.INVENTORY_RESERVATION_TTL_SECONDS || 5 * 60);
+const PAYMENT_RESERVATION_TTL_SECONDS = Number(process.env.INVENTORY_PAYMENT_RESERVATION_TTL_SECONDS || 30 * 60);
 const LOCK_TTL_MS = 10_000;
 
 export interface ReserveLineInput {
@@ -373,20 +374,42 @@ export class StockReservationService {
         }
     }
 
+    static async extendReservations(
+        reservationIds: string[],
+        userId: string,
+        ttlSeconds = PAYMENT_RESERVATION_TTL_SECONDS
+    ): Promise<Date> {
+        const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
+        await StockReservation.updateMany(
+            {
+                reservationId: { $in: reservationIds },
+                userId,
+                status: 'reserved',
+            },
+            { $set: { expiresAt } }
+        );
+        return expiresAt;
+    }
+
     static async completeReservation(
         reservationId: string,
-        context?: { orderId?: string; paymentId?: string }
+        context?: { orderId?: string; paymentId?: string },
+        options?: { allowExpired?: boolean }
     ): Promise<boolean> {
         const session = await mongoose.startSession();
         session.startTransaction();
 
         try {
+            const reservationFilter: Record<string, unknown> = {
+                reservationId,
+                status: 'reserved',
+            };
+            if (!options?.allowExpired) {
+                reservationFilter.expiresAt = { $gt: new Date() };
+            }
+
             const reservation = await StockReservation.findOneAndUpdate(
-                {
-                    reservationId,
-                    status: 'reserved',
-                    expiresAt: { $gt: new Date() },
-                },
+                reservationFilter,
                 {
                     $set: {
                         status: 'completed',

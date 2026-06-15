@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import axios from 'axios';
 import { useAuth } from '@/hooks/useAuth';
 import { getCartSyncSignalKey, mergeLocalCartToServer, refreshLocalCartFromServer } from '@/lib/cartServerSync';
 
@@ -32,12 +33,24 @@ export function CartServerSync() {
     if (!isAuthenticated || !user?.uid || loading) return;
 
     let refreshing = false;
+    let pauseUntil = 0;
+    let lastRefreshAt = 0;
+
     const refresh = async () => {
-      if (refreshing) return;
+      if (refreshing || Date.now() < pauseUntil) return;
+      if (Date.now() - lastRefreshAt < 5000) return;
+
       refreshing = true;
+      lastRefreshAt = Date.now();
       try {
         await refreshLocalCartFromServer();
       } catch (error) {
+        if (
+          axios.isAxiosError(error) &&
+          (error.response?.status === 401 || error.response?.status === 503)
+        ) {
+          pauseUntil = Date.now() + 30000;
+        }
         console.warn('Cart refresh skipped:', error);
       } finally {
         refreshing = false;

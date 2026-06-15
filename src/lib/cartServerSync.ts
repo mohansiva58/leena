@@ -1,5 +1,5 @@
 import { cartService, Cart, ServerCartItem } from '@/services/cartService';
-import { useCartStore, getProductId, getCartItemImage } from '@/lib/cart';
+import { useCartStore, getProductId, getCartItemImage, type CartItem } from '@/lib/cart';
 import type { Product } from '@/lib/products';
 import axios from 'axios';
 
@@ -7,6 +7,27 @@ const CART_SYNC_SIGNAL_KEY = 'sw_cart_sync_signal';
 
 function serverLineKey(productId: string, size: string, color?: string, image?: string) {
   return `${productId}:${size}:${color || ''}:${image || 'default'}`;
+}
+
+function collectProductIds(product: Product): string[] {
+  const ids = new Set<string>();
+  if (product.productId) ids.add(product.productId);
+  if (product.id) ids.add(product.id);
+  if (product._id) ids.add(String(product._id));
+  return [...ids];
+}
+
+function serverLineMatchesLocal(serverItem: ServerCartItem, localRow: CartItem): boolean {
+  const localIds = collectProductIds(localRow.product);
+  if (!localIds.includes(serverItem.productId)) return false;
+  if (serverItem.size !== localRow.size) return false;
+  return (serverItem.color || '') === (localRow.color || '');
+}
+
+function getServerQuantityForLocal(serverItems: ServerCartItem[], localRow: CartItem): number {
+  return serverItems
+    .filter((item) => serverLineMatchesLocal(item, localRow))
+    .reduce((sum, item) => sum + item.quantity, 0);
 }
 
 function serverLineToProduct(line: ServerCartItem): Product {
@@ -64,14 +85,14 @@ export async function mergeLocalCartToServer() {
   for (const row of localItems) {
     const pid = getProductId(row.product);
     const image = getCartItemImage(row);
-    const key = serverLineKey(pid, row.size, row.color, image);
-    const serverQty = serverQuantities.get(key) || 0;
+    const serverQty = getServerQuantityForLocal(serverCart.items, row);
     const delta = row.quantity - serverQty;
 
     if (delta <= 0) continue;
 
     try {
       await cartService.addToCart(pid, row.size, delta, image, row.color);
+      const key = serverLineKey(pid, row.size, row.color, image);
       serverQuantities.set(key, serverQty + delta);
     } catch (error) {
       if (axios.isAxiosError(error)) {

@@ -162,6 +162,9 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<void> 
             }
 
             if (totalQuantity > availableForSize) {
+                if (existingItemIndex > -1 && cart.items[existingItemIndex].quantity >= availableForSize) {
+                    continue;
+                }
                 res.status(400).json({
                     error: `Only ${availableForSize} item(s) available for size ${sizeItem.size}. You already have ${existingItemIndex > -1 ? cart.items[existingItemIndex].quantity : 0} in your cart.`,
                 });

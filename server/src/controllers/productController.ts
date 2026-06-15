@@ -443,7 +443,9 @@ export const updateProduct = async (req: AuthRequest, res: Response): Promise<vo
                     io.emit('stockUpdate', {
                         productId: updated.productId,
                         size,
-                        stock: available
+                        stock: available,
+                        totalStock: total,
+                        reservedStock: reserved,
                     });
                 }
             }

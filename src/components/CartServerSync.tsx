@@ -1,9 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useCartStore, getProductId, getCartItemImage } from '@/lib/cart';
-import { cartService } from '@/services/cartService';
-import { applyServerCartToLocal, getCartSyncSignalKey, refreshLocalCartFromServer } from '@/lib/cartServerSync';
-import axios from 'axios';
+import { getCartSyncSignalKey, mergeLocalCartToServer, refreshLocalCartFromServer } from '@/lib/cartServerSync';
 
 /**
  * When user signs in: prefer server cart if non-empty; otherwise push local cart to API.
@@ -23,29 +20,7 @@ export function CartServerSync() {
 
     (async () => {
       try {
-        const serverCart = await cartService.getCart();
-        const localItems = useCartStore.getState().items;
-
-        if (serverCart.items?.length) {
-          applyServerCartToLocal(serverCart);
-        } else if (localItems.length) {
-          for (const row of localItems) {
-            const pid = getProductId(row.product);
-            try {
-              await cartService.addToCart(pid, row.size, row.quantity, getCartItemImage(row), row.color);
-            } catch (error) {
-              if (axios.isAxiosError(error) && error.response?.status === 404) {
-                useCartStore.getState().removeItem(pid, row.size, getCartItemImage(row), row.color);
-                continue;
-              }
-              throw error;
-            }
-          }
-          const refreshed = await cartService.getCart();
-          if (refreshed.items?.length) {
-            applyServerCartToLocal(refreshed);
-          }
-        }
+        await mergeLocalCartToServer();
         ranForUid.current = user.uid;
       } catch (e) {
         console.warn('Cart server sync skipped:', e);

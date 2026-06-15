@@ -7,7 +7,7 @@ import { getIO } from '../socket';
 import { getRedisClient } from '../config/redis';
 import { cacheDel, cacheInvalidatePrefix } from '../utils/cache';
 
-const DEFAULT_RESERVATION_TTL_SECONDS = Number(process.env.INVENTORY_RESERVATION_TTL_SECONDS || 10 * 60);
+const DEFAULT_RESERVATION_TTL_SECONDS = Number(process.env.INVENTORY_RESERVATION_TTL_SECONDS || 1 * 60);
 const LOCK_TTL_MS = 10_000;
 
 export interface ReserveLineInput {
@@ -46,6 +46,32 @@ const getStockFields = (size: string) => ({
 
 const lockKey = (productId: string, size: string, color?: string) =>
     `inventory:lock:${productId}:${size}:${color || 'default'}`;
+
+const buildIdempotencyFilter = (
+    idempotencyKey: string,
+    productId: string,
+    size: string,
+    color?: string
+) => ({
+    idempotencyKey,
+    productId,
+    size,
+    ...(color
+        ? { color }
+        : { $or: [{ color: null }, { color: { $exists: false } }] }),
+});
+
+async function clearInactiveIdempotencyReservations(
+    idempotencyKey: string,
+    productId: string,
+    size: string,
+    color?: string
+) {
+    await StockReservation.deleteMany({
+        ...buildIdempotencyFilter(idempotencyKey, productId, size, color),
+        status: { $in: ['expired', 'released', 'cancelled', 'completed'] },
+    });
+}
 
 async function withRedisLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
     const redis = getRedisClient();
@@ -130,20 +156,28 @@ export class StockReservationService {
     ): Promise<IStockReservation> {
         const normalizedQuantity = positiveQuantity(quantity);
         const idempotencyKey = options?.idempotencyKey || `${sessionId}:${productId}:${size}:${options?.color || 'default'}`;
+        const idempotencyFilter = buildIdempotencyFilter(idempotencyKey, productId, size, options?.color);
 
         const existing = await StockReservation.findOne({
-            idempotencyKey,
-            productId,
-            size,
-            color: options?.color,
-            sessionId,
+            ...idempotencyFilter,
             status: 'reserved',
             expiresAt: { $gt: new Date() },
         });
 
         if (existing) return existing;
 
+        await clearInactiveIdempotencyReservations(idempotencyKey, productId, size, options?.color);
+
         return withRedisLock(lockKey(productId, size, options?.color), async () => {
+            const activeAfterLock = await StockReservation.findOne({
+                ...idempotencyFilter,
+                status: 'reserved',
+                expiresAt: { $gt: new Date() },
+            });
+            if (activeAfterLock) return activeAfterLock;
+
+            await clearInactiveIdempotencyReservations(idempotencyKey, productId, size, options?.color);
+
             const session = await mongoose.startSession();
             session.startTransaction();
 
@@ -213,6 +247,17 @@ export class StockReservationService {
                 return reservation;
             } catch (error) {
                 await session.abortTransaction();
+
+                const mongoError = error as { code?: number };
+                if (mongoError.code === 11000) {
+                    const duplicate = await StockReservation.findOne({
+                        ...idempotencyFilter,
+                        status: 'reserved',
+                        expiresAt: { $gt: new Date() },
+                    });
+                    if (duplicate) return duplicate;
+                }
+
                 throw error;
             } finally {
                 session.endSession();
@@ -428,6 +473,83 @@ export class StockReservationService {
                 console.error(`Failed to release reservation ${reservation.reservationId}:`, err);
             }
         }
+    }
+
+    /**
+     * Rebuild product reserved counts from active reservations only.
+     * Fixes orphaned sizeReservedCounts when reservation documents were deleted manually.
+     */
+    static async reconcileReservedCounts(): Promise<number> {
+        const activeReservations = await StockReservation.aggregate([
+            { $match: { status: 'reserved', expiresAt: { $gt: new Date() } } },
+            {
+                $group: {
+                    _id: { productId: '$productId', size: '$size' },
+                    quantity: { $sum: '$quantity' },
+                },
+            },
+        ]);
+
+        const reservedByProduct = new Map<string, Record<string, number>>();
+        for (const row of activeReservations) {
+            const productId = row._id.productId as string;
+            const size = row._id.size as string;
+            const bucket = reservedByProduct.get(productId) || {};
+            bucket[size] = row.quantity as number;
+            reservedByProduct.set(productId, bucket);
+        }
+
+        const products = await Product.find({
+            $or: [
+                { reservedStock: { $gt: 0 } },
+                { sizeReservedCounts: { $exists: true, $ne: {} } },
+            ],
+        }).select('productId sizeCounts sizeReservedCounts reservedStock sizes');
+
+        let fixed = 0;
+
+        for (const product of products) {
+            const actual = reservedByProduct.get(product.productId) || {};
+            const currentReserved = mapToObject(product.sizeReservedCounts);
+            const sizeCounts = mapToObject(product.sizeCounts);
+            const allSizes = new Set([
+                ...Object.keys(sizeCounts),
+                ...Object.keys(currentReserved),
+                ...Object.keys(actual),
+            ]);
+
+            const nextReserved: Record<string, number> = {};
+            let totalReserved = 0;
+            let changed = false;
+
+            for (const size of allSizes) {
+                const next = Number(actual[size] || 0);
+                nextReserved[size] = next;
+                totalReserved += next;
+                if (Number(currentReserved[size] || 0) !== next) {
+                    changed = true;
+                }
+            }
+
+            if (!changed && Number(product.reservedStock || 0) === totalReserved) {
+                continue;
+            }
+
+            product.sizeReservedCounts = nextReserved;
+            product.reservedStock = totalReserved;
+            product.markModified('sizeReservedCounts');
+            await product.save();
+            await cacheDel(`product:${product.productId}`);
+            await this.broadcastStockUpdate(product.productId).catch(() => undefined);
+            fixed += 1;
+        }
+
+        if (fixed > 0) {
+            await cacheInvalidatePrefix('products:');
+            console.log(`Reconciled reserved stock for ${fixed} product(s)`);
+        }
+
+        return fixed;
     }
 
     static async broadcastStockUpdate(productId: string, size?: string) {

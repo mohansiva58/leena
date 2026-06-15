@@ -225,6 +225,10 @@ async function startWorker() {
             console.error('Initial reservation cleanup failed:', err)
         );
 
+        await StockReservationService.reconcileReservedCounts().catch(err =>
+            console.error('Initial reserved-count reconciliation failed:', err)
+        );
+
         const server = httpServer.listen(PORT, () => {
             console.log(`\n✅ Server running on port ${PORT}`);
             console.log(`📱 API Base URL: http://localhost:${PORT}/api`);
@@ -235,6 +239,9 @@ async function startWorker() {
         setInterval(() => {
             StockReservationService.cleanupExpiredReservations().catch(err => 
                 console.error('Reservation cleanup failed:', err)
+            );
+            StockReservationService.reconcileReservedCounts().catch(err =>
+                console.error('Reserved-count reconciliation failed:', err)
             );
         }, 1 * 60 * 1000);
 

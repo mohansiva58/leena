@@ -6,6 +6,7 @@ import { AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { AuthModal } from '@/components/AuthModal';
+import { LogoLoader } from '@/components/ui/loader';
 import { useCartStore, getProductId, getCartItemImage } from '@/lib/cart';
 import { useAuth } from '@/hooks/useAuth';
 import { useRealTimeStock } from '@/hooks/useRealTimeStock';
@@ -20,7 +21,7 @@ import { saleService } from '@/services/saleService';
 import { indianStates } from '@/lib/indianStates';
 import { toast } from 'sonner';
 import axios, { AxiosError } from 'axios';
-import { notifyCartChangedAcrossTabs } from '@/lib/cartServerSync';
+import { notifyCartChangedAcrossTabs, mergeLocalCartToServer } from '@/lib/cartServerSync';
 
 import { API_BASE_URL } from '@/services/api';
 
@@ -73,6 +74,10 @@ export default function CheckoutPage() {
         toast.loading('Securing your items...', { id: loadingToastId });
 
         try {
+          if (isAuthenticated) {
+            await mergeLocalCartToServer();
+          }
+
           const availability = await cartService.getAvailability().catch(() => null);
           if (availability && !availability.available) {
             const errors: Record<string, string> = {};
@@ -99,6 +104,7 @@ export default function CheckoutPage() {
           reservationsMade = reservationIds;
           store.setReservationIds(reservationIds);
           setReservationExpiresAt(new Date(reservation.expiresAt));
+          setStockErrors({});
           toast.success('Items reserved for checkout.', { id: loadingToastId });
         } catch (err: unknown) {
           const error = err as { response?: { data?: { error?: string } }; message?: string };
@@ -390,7 +396,7 @@ export default function CheckoutPage() {
             setFormData(prev => ({ ...prev, email: user?.email || '' }));
           }
         } catch (error) {
-          console.error("Failed to fetch past orders", error);
+          console.error('Failed to fetch saved address or order history', error);
         }
       };
 
@@ -1006,9 +1012,9 @@ export default function CheckoutPage() {
                           type="button"
                           onClick={handleApplyCoupon}
                           disabled={couponLoading || !couponCode.trim()}
-                          className="px-6 py-2 btn-primary rounded-lg text-sm font-medium disabled:opacity-50"
+                          className="px-6 py-2 btn-primary rounded-lg text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"
                         >
-                          {couponLoading ? '...' : 'Apply'}
+                          {couponLoading ? <LogoLoader size="sm" /> : 'Apply'}
                         </button>
                       </div>
                       {couponError && (
@@ -1082,9 +1088,9 @@ export default function CheckoutPage() {
                     type="button"
                     onClick={handlePlaceOrder}
                     disabled={isProcessing}
-                    className="flex-1 btn-primary py-4 font-semibold disabled:opacity-50"
+                    className="flex-1 btn-primary py-4 font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    {isProcessing ? 'Processing...' : 'Pay Now'}
+                    {isProcessing ? <><LogoLoader size="sm" /> Processing...</> : 'Pay Now'}
                   </button>
                 </div>
               </div>

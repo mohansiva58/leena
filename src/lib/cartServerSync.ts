@@ -1,8 +1,13 @@
 import { cartService, Cart, ServerCartItem } from '@/services/cartService';
-import { useCartStore } from '@/lib/cart';
+import { useCartStore, getProductId, getCartItemImage } from '@/lib/cart';
 import type { Product } from '@/lib/products';
+import axios from 'axios';
 
 const CART_SYNC_SIGNAL_KEY = 'sw_cart_sync_signal';
+
+function serverLineKey(productId: string, size: string, color?: string, image?: string) {
+  return `${productId}:${size}:${color || ''}:${image || 'default'}`;
+}
 
 function serverLineToProduct(line: ServerCartItem): Product {
   return {
@@ -33,6 +38,63 @@ export function applyServerCartToLocal(cart: Cart | null | undefined) {
       item.color
     );
   }
+}
+
+function buildServerQuantityMap(items: ServerCartItem[] = []) {
+  const quantities = new Map<string, number>();
+  for (const item of items) {
+    const key = serverLineKey(item.productId, item.size, item.color, item.variantImage || item.image);
+    quantities.set(key, (quantities.get(key) || 0) + item.quantity);
+  }
+  return quantities;
+}
+
+export async function mergeLocalCartToServer() {
+  const localItems = useCartStore.getState().items;
+  const serverCart = await cartService.getCart();
+  const serverQuantities = buildServerQuantityMap(serverCart.items);
+
+  if (!localItems.length) {
+    if (serverCart.items?.length) {
+      applyServerCartToLocal(serverCart);
+    }
+    return serverCart;
+  }
+
+  for (const row of localItems) {
+    const pid = getProductId(row.product);
+    const image = getCartItemImage(row);
+    const key = serverLineKey(pid, row.size, row.color, image);
+    const serverQty = serverQuantities.get(key) || 0;
+    const delta = row.quantity - serverQty;
+
+    if (delta <= 0) continue;
+
+    try {
+      await cartService.addToCart(pid, row.size, delta, image, row.color);
+      serverQuantities.set(key, serverQty + delta);
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 404) {
+          useCartStore.getState().removeItem(pid, row.size, image, row.color);
+          continue;
+        }
+        if (error.response?.status === 400) {
+          continue;
+        }
+      }
+      throw error;
+    }
+  }
+
+  const refreshed = await cartService.getCart();
+  applyServerCartToLocal(refreshed);
+  return refreshed;
+}
+
+/** @deprecated Use mergeLocalCartToServer */
+export async function ensureLocalCartSyncedToServer() {
+  return mergeLocalCartToServer();
 }
 
 export async function refreshLocalCartFromServer() {

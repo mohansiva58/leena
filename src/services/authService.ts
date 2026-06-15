@@ -6,7 +6,8 @@ import {
     signOut,
     onAuthStateChanged,
     GoogleAuthProvider,
-    signInWithPopup,
+    signInWithRedirect,
+    getRedirectResult,
     User,
 } from 'firebase/auth';
 
@@ -42,22 +43,19 @@ export const authService = {
         return userCredential.user;
     },
 
-// Google Authentication
+// Google Authentication — redirect avoids COOP popup warnings in dev/production
     signInWithGoogle: async () => {
-        try {
-            // Configure Google provider for popup authentication
-            // Removed 'prompt': 'consent' to avoid forcing consent every time, which can cause popup issues
-            googleProvider.setCustomParameters({});
-            
-            const userCredential = await signInWithPopup(auth, googleProvider);
-            const token = await userCredential.user.getIdToken();
-            localStorage.setItem('firebaseToken', token);
-            return userCredential.user;
-        } catch (error: unknown) {
-            // Re-throw the original Firebase error instead of wrapping it
-            // so that getPopupErrorMessage can handle it properly
-            throw error;
-        }
+        googleProvider.setCustomParameters({});
+        await signInWithRedirect(auth, googleProvider);
+        return null;
+    },
+
+    completeRedirectSignIn: async (): Promise<User | null> => {
+        const result = await getRedirectResult(auth);
+        if (!result?.user) return null;
+        const token = await result.user.getIdToken();
+        localStorage.setItem('firebaseToken', token);
+        return result.user;
     },
 
     // Sign Out

@@ -6,6 +6,37 @@ interface StockUpdate {
     productId: string;
     size: string;
     stock: number;
+    totalStock?: number;
+    reservedStock?: number;
+}
+
+function applyStockUpdate(product: Record<string, unknown>, data: StockUpdate) {
+    const sizeCounts = { ...((product.sizeCounts as Record<string, number>) || {}) };
+    const sizeReservedCounts = { ...((product.sizeReservedCounts as Record<string, number>) || {}) };
+
+    const existingTotal = Number(sizeCounts[data.size] || 0);
+    const totalStock = data.totalStock ?? existingTotal;
+    const reservedStock =
+        data.reservedStock ??
+        (data.totalStock !== undefined
+            ? Math.max(0, data.totalStock - data.stock)
+            : Math.max(0, existingTotal - data.stock));
+
+    sizeCounts[data.size] = totalStock;
+    sizeReservedCounts[data.size] = reservedStock;
+
+    const availableTotal = Object.keys(sizeCounts).reduce((acc, size) => {
+        const total = Number(sizeCounts[size] || 0);
+        const reserved = Number(sizeReservedCounts[size] || 0);
+        return acc + Math.max(0, total - reserved);
+    }, 0);
+
+    return {
+        ...product,
+        sizeCounts,
+        sizeReservedCounts,
+        stock: availableTotal,
+    };
 }
 
 export const useRealTimeStock = (productId?: string) => {
@@ -16,62 +47,37 @@ export const useRealTimeStock = (productId?: string) => {
         if (!socket) return;
 
         socket.on('stockUpdate', (data: StockUpdate) => {
-            console.log('Real-time stock update received:', data);
-            
-            // 1. Force immediate cache update for the specific product detail query
             queryClient.setQueryData(['product', data.productId], (oldData: unknown) => {
                 if (!oldData) return oldData;
-                
-                const newData = { ...(oldData as Record<string, unknown>) };
-                
-                // Ensure sizeCounts exists and is an object
-                const currentSizeCounts = { ...((newData.sizeCounts as Record<string, number>) || {}) };
-                currentSizeCounts[data.size] = data.stock;
-                
-                newData.sizeCounts = currentSizeCounts;
-                
-                // Recalculate total available stock
-                const total = Object.values(currentSizeCounts).reduce((acc: number, val: number) => acc + (Number(val) || 0), 0);
-                newData.stock = total;
-                
-                return newData;
+                return applyStockUpdate(oldData as Record<string, unknown>, data);
             });
 
-            // 2. Force immediate cache update for any active product lists (Shop Page, Featured, etc.)
-            queryClient.setQueriesData({ queryKey: ['products'] }, (oldData: any) => {
+            queryClient.setQueriesData({ queryKey: ['products'] }, (oldData: unknown) => {
                 if (!oldData) return oldData;
-                
-                // If the cached structure is a direct array of products
+
                 if (Array.isArray(oldData)) {
-                    return oldData.map((p: any) => {
-                        const pid = p.productId || p._id || p.id;
-                        if (pid === data.productId) {
-                            const sizeCounts = { ...(p.sizeCounts || {}) };
-                            sizeCounts[data.size] = data.stock;
-                            const total = Object.values(sizeCounts).reduce((acc: number, val: number) => acc + (Number(val) || 0), 0);
-                            return { ...p, sizeCounts, stock: total };
-                        }
-                        return p;
+                    return oldData.map((product: Record<string, unknown>) => {
+                        const pid = (product.productId || product._id || product.id) as string;
+                        return pid === data.productId ? applyStockUpdate(product, data) : product;
                     });
                 }
-                
-                // If the cached structure is a paged response: { items: [...], total, ... }
-                if (oldData && typeof oldData === 'object' && 'items' in oldData && Array.isArray(oldData.items)) {
+
+                if (
+                    oldData &&
+                    typeof oldData === 'object' &&
+                    'items' in oldData &&
+                    Array.isArray((oldData as { items: unknown[] }).items)
+                ) {
+                    const paged = oldData as { items: Record<string, unknown>[] };
                     return {
-                        ...oldData,
-                        items: oldData.items.map((p: any) => {
-                            const pid = p.productId || p._id || p.id;
-                            if (pid === data.productId) {
-                                const sizeCounts = { ...(p.sizeCounts || {}) };
-                                sizeCounts[data.size] = data.stock;
-                                const total = Object.values(sizeCounts).reduce((acc: number, val: number) => acc + (Number(val) || 0), 0);
-                                return { ...p, sizeCounts, stock: total };
-                            }
-                            return p;
-                        })
+                        ...paged,
+                        items: paged.items.map((product) => {
+                            const pid = (product.productId || product._id || product.id) as string;
+                            return pid === data.productId ? applyStockUpdate(product, data) : product;
+                        }),
                     };
                 }
-                
+
                 return oldData;
             });
         });

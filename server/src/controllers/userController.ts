@@ -4,6 +4,7 @@ import User from '../models/User';
 import { IAddress } from '../models/User';
 import { cacheDel } from '../utils/cache';
 import { isAdminEmail } from '../utils/admin';
+import { ensureUserRecord } from '../utils/ensureUser';
 import { sendLoginNotificationEmail } from '../config/email';
 
 const authCacheKey = (uid: string) => `auth:user:${uid}`;
@@ -19,7 +20,15 @@ export const getCurrentUser = async (req: AuthRequest, res: Response): Promise<v
             return;
         }
 
-        const user = await User.findOne({ firebaseUid: userId });
+        let user = await User.findOne({ firebaseUid: userId });
+
+        if (!user) {
+            user = await ensureUserRecord({
+                firebaseUid: userId,
+                email: req.user?.email,
+                displayName: req.user?.displayName,
+            });
+        }
 
         if (!user) {
             res.status(404).json({ error: 'User not found' });

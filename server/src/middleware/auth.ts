@@ -1,8 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyFirebaseToken } from '../config/firebase';
-import User from '../models/User';
-import { cacheGet, cacheSet, cacheDel, CACHE_TTL } from '../utils/cache';
-import { isAdminEmail } from '../utils/admin';
+import { cacheGet, cacheSet, CACHE_TTL } from '../utils/cache';
+import { ensureUserRecord } from '../utils/ensureUser';
 
 export interface AuthRequest extends Request {
     user?: {
@@ -52,55 +51,12 @@ export const authenticateUser = async (
 
         if (!user) {
             try {
-                // Generate email with fallback to ensure it's always unique
-                let email = decodedToken.email;
-                if (!email) {
-                    // Create a unique email based on Firebase UID
-                    email = `user_${decodedToken.uid.slice(0, 8)}@firebase.local`;
-                }
-                email = email.toLowerCase().trim();
-
-                const shouldBeAdmin = isAdminEmail(email);
-
-                // Use findOneAndUpdate with upsert, and handle duplicate email
-                let upsertedUser;
-                try {
-                    upsertedUser = await User.findOneAndUpdate(
-                        { firebaseUid: decodedToken.uid },
-                        {
-                            $setOnInsert: {
-                                firebaseUid: decodedToken.uid,
-                                displayName: decodedToken.name || email.split('@')[0] || 'User',
-                                picture: decodedToken.picture || '',
-                                role: shouldBeAdmin ? 'admin' : 'user',
-                            },
-                            $set: {
-                                email, // Always update email from token
-                                role: shouldBeAdmin ? 'admin' : 'user', // Update role if should be admin
-                            },
-                        },
-                        { upsert: true, new: true }
-                    );
-                } catch (dbError: any) {
-                    // If there's a duplicate email error (email exists with different firebaseUid)
-                    if (dbError.code === 11000 && dbError.keyPattern?.email) {
-                        // Find the existing user by email and update their firebaseUid
-                        upsertedUser = await User.findOneAndUpdate(
-                            { email },
-                            {
-                                $set: {
-                                    firebaseUid: decodedToken.uid,
-                                    displayName: decodedToken.name || email.split('@')[0] || 'User',
-                                    picture: decodedToken.picture || '',
-                                    role: shouldBeAdmin ? 'admin' : 'user',
-                                },
-                            },
-                            { new: true }
-                        );
-                    } else {
-                        throw dbError;
-                    }
-                }
+                const upsertedUser = await ensureUserRecord({
+                    firebaseUid: decodedToken.uid,
+                    email: decodedToken.email,
+                    displayName: decodedToken.name,
+                    picture: decodedToken.picture,
+                });
 
                 if (!upsertedUser) {
                     throw new Error('Failed to create or retrieve user');
@@ -110,13 +66,13 @@ export const authenticateUser = async (
                 await cacheSet(userCacheKey, user, CACHE_TTL.USER_AUTH);
             } catch (dbError) {
                 console.error('Auth middleware database error:', dbError);
-                // Even if DB fails, let's try to proceed with just the decoded token!
-                user = {
-                    firebaseUid: decodedToken.uid,
-                    email: decodedToken.email || `user_${decodedToken.uid.slice(0, 8)}@firebase.local`,
-                    displayName: decodedToken.name || 'User',
-                    role: 'user',
-                };
+                const message = dbError instanceof Error ? dbError.message : '';
+                if (message.includes('already associated with a different account')) {
+                    res.status(409).json({ error: message });
+                    return;
+                }
+                res.status(503).json({ error: 'Unable to sync user account. Please try again.' });
+                return;
             }
         }
 

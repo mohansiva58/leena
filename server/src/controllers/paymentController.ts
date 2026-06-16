@@ -74,9 +74,10 @@ export const createRazorpayOrder = async (req: AuthRequest, res: Response): Prom
                 }
             }
 
-            const serverTotal = resolved.subtotal - discount;
+            const SHIPPING_CHARGE = 50; // Fixed shipping cost — must match frontend CheckoutPage
+            const serverTotal = resolved.subtotal - discount + SHIPPING_CHARGE;
             if (Math.round(serverTotal * 100) !== Math.round(numericAmount * 100)) {
-                res.status(409).json({ error: 'Cart total changed.  review your cart and try again.' });
+                res.status(409).json({ error: 'Your cart total has changed. Please review your cart and try again.' });
                 return;
             }
 
@@ -85,7 +86,14 @@ export const createRazorpayOrder = async (req: AuthRequest, res: Response): Prom
 
         const keyId = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
         if (!keyId) {
-            res.status(503).json({ error: 'Payment gateway is not configured' });
+            res.status(503).json({ error: 'Payment gateway is not configured. Please contact support.' });
+            return;
+        }
+
+        // Validate that keyId looks like a real Razorpay key (not a placeholder)
+        if (!keyId.startsWith('rzp_')) {
+            console.error('[Razorpay] Invalid RAZORPAY_KEY_ID format:', keyId.substring(0, 10));
+            res.status(503).json({ error: 'Payment gateway key is invalid. Please contact support.' });
             return;
         }
 

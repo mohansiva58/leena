@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { StockReservationService } from '../services/StockReservationService';
+import StockReservation from '../models/StockReservation';
 
 const normalizeReservationItems = (items: unknown) => {
     if (!Array.isArray(items)) return [];
@@ -37,7 +38,79 @@ export const reserveInventory = async (req: AuthRequest, res: Response): Promise
         }
 
         if (items.length > 0) {
-            const result = await StockReservationService.reserveItems(items, String(sessionId), userId, idempotencyKey);
+            // ── CHECKOUT RESERVATION LOGIC ───────────────────────────────────
+            // If the user already has active cart reservations covering these
+            // exact items (created by CartReservationService when they added to
+            // cart), we must NOT create new reservations — that would double-
+            // consume the stock.  Instead, extend TTL and return the existing IDs.
+            if (userId) {
+                const existingReservations = await StockReservation.find({
+                    userId,
+                    status: 'reserved',
+                    expiresAt: { $gt: new Date() },
+                    productId: { $in: items.map((i) => i.productId) },
+                }).lean();
+
+                // Build a map of existing: productId:size -> [reservations]
+                const existingMap = new Map<string, typeof existingReservations[0][]>();
+                for (const res of existingReservations) {
+                    const key = `${res.productId}:${res.size}`;
+                    if (!existingMap.has(key)) existingMap.set(key, []);
+                    existingMap.get(key)!.push(res);
+                }
+
+                // Check if existing reservations fully cover requested items
+                const allCovered = items.every((item) => {
+                    const key = `${item.productId}:${item.size}`;
+                    const existing = existingMap.get(key) || [];
+                    const coveredQty = existing.reduce((sum, r) => sum + r.quantity, 0);
+                    return coveredQty >= item.quantity;
+                });
+
+                if (allCovered) {
+                    // Extend TTL of existing reservations and return their IDs
+                    const CHECKOUT_TTL_SECONDS = Number(
+                        process.env.INVENTORY_RESERVATION_TTL_SECONDS || 5 * 60
+                    );
+                    const expiresAt = new Date(Date.now() + CHECKOUT_TTL_SECONDS * 1000);
+                    const idsToExtend = existingReservations.map((r) => r.reservationId);
+
+                    await StockReservation.updateMany(
+                        { reservationId: { $in: idsToExtend }, status: 'reserved' },
+                        { $set: { expiresAt } }
+                    );
+
+                    res.status(201).json({
+                        reservationGroupId: existingReservations[0]?.reservationGroupId || idsToExtend[0],
+                        reservationIds: idsToExtend,
+                        expiresAt: expiresAt.toISOString(),
+                        ttlSeconds: CHECKOUT_TTL_SECONDS,
+                        reused: true,
+                    });
+                    return;
+                }
+
+                // Partial coverage — only reserve the uncovered subset to avoid double-consuming stock
+                const uncoveredItems = items.filter((item) => {
+                    const key = `${item.productId}:${item.size}`;
+                    const existing = existingMap.get(key) || [];
+                    const coveredQty = existing.reduce((sum: number, r: { quantity: number }) => sum + r.quantity, 0);
+                    return coveredQty < item.quantity;
+                });
+
+                if (uncoveredItems.length > 0) {
+                    const result = await StockReservationService.reserveItems(
+                        uncoveredItems, String(sessionId), userId, idempotencyKey
+                    );
+                    res.status(201).json(result);
+                    return;
+                }
+            }
+
+            // No userId or no reservation records — create fresh reservations for all items
+            const result = await StockReservationService.reserveItems(
+                items, String(sessionId), userId, idempotencyKey
+            );
             res.status(201).json(result);
             return;
         }

@@ -63,13 +63,14 @@ interface RazorpayResponse {
 interface RazorpayCheckoutProps {
     amount: number;
     orderData: CreateOrderData;
-    onSuccess: (orderId: string, orderDetails: CreateOrderData & { total: number; subtotal: number; discount: number }) => void;
+    onSuccess: (orderId: string, orderDetails: CreateOrderData & { total: number; subtotal: number; discount: number; shipping: number }) => void;
     onFailure: (error: unknown) => void;
     onPaymentAuthorized?: () => void;
     onReservationExtended?: (expiresAt: Date) => void;
     total: number;
     subtotal: number;
     discountAmount: number;
+    shippingCharge: number;
 }
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -79,7 +80,7 @@ export const useRazorpayCheckout = () => {
     const inFlight = useRef(false);
     const navigate = useNavigate();
 
-    const initiatePayment = async ({ amount, orderData, onSuccess, onFailure, onPaymentAuthorized, onReservationExtended, total, subtotal, discountAmount }: RazorpayCheckoutProps) => {
+    const initiatePayment = async ({ amount, orderData, onSuccess, onFailure, onPaymentAuthorized, onReservationExtended, total, subtotal, discountAmount, shippingCharge }: RazorpayCheckoutProps) => {
         try {
             if (!user) {
                 throw new Error('Please login to continue');
@@ -92,6 +93,12 @@ export const useRazorpayCheckout = () => {
 
             // Create Razorpay order
             const razorpayOrder = await paymentService.createRazorpayOrder(amount, orderData);
+
+            // Guard: if keyId is missing, Razorpay SDK will load `build/undefined` and throw a 403
+            if (!razorpayOrder.keyId) {
+                throw new Error('Payment gateway is not configured. Please contact support.');
+            }
+
             if (razorpayOrder.reservationExpiresAt) {
                 onReservationExtended?.(new Date(razorpayOrder.reservationExpiresAt));
             }
@@ -201,7 +208,7 @@ export const useRazorpayCheckout = () => {
                             total,
                             subtotal,
                             discount: discountAmount,
-                            shipping: 0,
+                            shipping: shippingCharge,
                         };
 
                         onSuccess(orderRes.order.orderId, orderDetails);
@@ -229,7 +236,7 @@ export const useRazorpayCheckout = () => {
                                     total,
                                     subtotal,
                                     discount: discountAmount,
-                                    shipping: 0,
+                                    shipping: shippingCharge,
                                 };
                                 onSuccess(latestOrder.orderId, recoveredOrderDetails);
                                 return;

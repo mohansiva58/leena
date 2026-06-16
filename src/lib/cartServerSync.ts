@@ -56,12 +56,14 @@ async function fetchStockLimits(items: ServerCartItem[]) {
 
   try {
     const availability = await cartService.getAvailability();
-    for (const row of availability.items) {
-      limits.set(`${row.productId}-${row.size}`, row.maxAvailable);
+    if (!availability._error) {
+      for (const row of availability.items) {
+        limits.set(`${row.productId}-${row.size}`, row.availableToBuy);
+      }
+      return limits;
     }
-    return limits;
   } catch {
-    // Guest carts or auth failures fall back to public stock check.
+    // Guest carts or auth failures — fall back to public stock check.
   }
 
   try {
@@ -76,7 +78,7 @@ async function fetchStockLimits(items: ServerCartItem[]) {
       limits.set(`${row.productId}-${row.size}`, row.maxAvailable);
     }
   } catch {
-    // Fall back to zero limits so local quantity increases stay blocked.
+    // No limits available — caller falls back gracefully.
   }
 
   return limits;

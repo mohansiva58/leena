@@ -58,6 +58,11 @@ export default function CheckoutPage() {
   const [reservationExpiresAt, setReservationExpiresAt] = useState<Date | null>(null);
   const [reservationSecondsLeft, setReservationSecondsLeft] = useState(0);
 
+  // Always start at the top of the page, and scroll to top when step changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [step]);
+
   const paymentSucceeded = useRef(false);
   const paymentInProgress = useRef(false);
 
@@ -84,7 +89,7 @@ export default function CheckoutPage() {
             const errors: Record<string, string> = {};
             availability.items.forEach((item) => {
               if (!item.available) {
-                errors[`${item.productId}-${item.size}`] = item.message || `Only ${item.maxAvailable} available`;
+                errors[`${item.productId}-${item.size}`] = item.message || `Only ${item.availableToBuy} available`;
               }
             });
             setStockErrors(errors);
@@ -109,8 +114,15 @@ export default function CheckoutPage() {
           toast.success('Items reserved for checkout.');
         } catch (err: unknown) {
           const error = err as { response?: { data?: { error?: string } }; message?: string };
-          toast.error(error.response?.data?.error || error.message || 'Some items are out of stock. Returning to cart.');
-          setTimeout(() => navigate('/cart'), 1500);
+          const serverMsg = error.response?.data?.error || error.message || '';
+          // Never show raw technical messages like "Insufficient stock for PROD-xxx size L"
+          const userMessage = serverMsg.toLowerCase().includes('insufficient stock')
+            ? 'An item in your cart is no longer available. Returning to cart to refresh.'
+            : serverMsg.toLowerCase().includes('stock')
+            ? 'Some items are no longer available. Returning to cart.'
+            : serverMsg || 'Unable to secure your items. Returning to cart.';
+          toast.error(userMessage);
+          setTimeout(() => navigate('/cart'), 1800);
         } finally {
           setIsSecuringItems(false);
         }
@@ -187,7 +199,7 @@ export default function CheckoutPage() {
       if (seconds === 0) {
         if (paymentSucceeded.current || paymentInProgress.current) return;
         useCartStore.getState().clearReservations();
-        toast.error('Your checkout reservation expired. Please review your cart again.');
+        toast.error('Your reservation expired. Please review your cart and try again.', { duration: 6000 });
         navigate('/cart');
       }
     };
@@ -228,12 +240,13 @@ export default function CheckoutPage() {
   const [validatingStock, setValidatingStock] = useState(false);
 
   const subtotal = getTotalPrice();
+  const SHIPPING_CHARGE = 50;
   const discountAmount = appliedCoupon 
     ? (appliedCoupon.discountType === 'percentage' 
         ? Math.round((subtotal * appliedCoupon.discountValue) / 100) 
         : appliedCoupon.discountValue) 
     : 0;
-  const total = subtotal - discountAmount;
+  const total = subtotal - discountAmount + SHIPPING_CHARGE;
 
   // If cart becomes empty during checkout (not because we cleared it), go back
   useEffect(() => {
@@ -544,6 +557,7 @@ export default function CheckoutPage() {
           total,
           subtotal,
           discountAmount,
+          shippingCharge: SHIPPING_CHARGE,
           onPaymentAuthorized: () => {
             paymentSucceeded.current = true;
           },
@@ -586,7 +600,7 @@ export default function CheckoutPage() {
               total,
               subtotal,
               discount: discountAmount,
-              shipping: 0,
+              shipping: SHIPPING_CHARGE,
             },
           },
         });
@@ -934,12 +948,30 @@ export default function CheckoutPage() {
               className="space-y-6"
             >
               <div className="bg-card rounded-2xl shadow-lg p-8">
+                {/* Prominent warning banner when under 2 minutes — full width, above header row */}
+                {reservationSecondsLeft > 0 && reservationSecondsLeft <= 120 && (
+                  <div className="mb-4 flex items-center gap-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-700 dark:bg-red-950/30 dark:text-red-300">
+                    <span className="text-lg">⏰</span>
+                    <span>
+                      <strong>Your reserved items expire in {Math.floor(reservationSecondsLeft / 60)}:{String(reservationSecondsLeft % 60).padStart(2, '0')}.</strong>
+                      {' '}Complete payment now or your items will be returned to inventory.
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6">
                   <h2 className="font-serif text-2xl font-bold">Payment Method</h2>
                   {reservationSecondsLeft > 0 && (
-                    <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary">
+                    <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      reservationSecondsLeft <= 120
+                        ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950/30 dark:text-red-300 animate-pulse'
+                        : 'border-primary/20 bg-primary/5 text-primary'
+                    }`}>
                       <Check size={14} />
-                      Reserved for {Math.floor(reservationSecondsLeft / 60)}:{String(reservationSecondsLeft % 60).padStart(2, '0')}
+                      {reservationSecondsLeft <= 120
+                        ? `⚠️ Expires in ${Math.floor(reservationSecondsLeft / 60)}:${String(reservationSecondsLeft % 60).padStart(2, '0')} — pay now!`
+                        : `Reserved for ${Math.floor(reservationSecondsLeft / 60)}:${String(reservationSecondsLeft % 60).padStart(2, '0')}`
+                      }
                     </div>
                   )}
                 </div>
@@ -1090,6 +1122,10 @@ export default function CheckoutPage() {
                         <span>-₹{discountAmount.toLocaleString()}</span>
                       </div>
                     )}
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Shipping</span>
+                      <span>₹{SHIPPING_CHARGE}</span>
+                    </div>
                     <div className="border-t border-border pt-2 mt-2">
                       <div className="flex justify-between font-semibold text-lg">
                         <span>Total</span>

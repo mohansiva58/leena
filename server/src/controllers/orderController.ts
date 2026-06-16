@@ -155,7 +155,8 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
             }
         }
 
-        const total = subtotal - discount;
+        const SHIPPING_CHARGE = 50; // Fixed shipping cost — must match frontend and paymentController
+        const total = subtotal - discount + SHIPPING_CHARGE;
         const totalPaise = Math.round(total * 100);
 
         let paymentStatus: 'pending' | 'paid' | 'failed' | 'cod' = 'pending';

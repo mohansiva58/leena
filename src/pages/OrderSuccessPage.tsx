@@ -21,6 +21,7 @@ interface OrderSuccessData {
     items: OrderSuccessItem[];
     subtotal?: number;
     discount?: number;
+    shipping?: number;
     total: number;
     shippingAddress: {
         fullName: string;
@@ -215,7 +216,10 @@ export default function OrderSuccessPage() {
                                         )}
                                         <div className="flex justify-between text-sm text-neutral-600 dark:text-neutral-400">
                                             <span>Delivery Charge</span>
-                                            <span className="font-medium text-green-600 dark:text-green-400">FREE</span>
+                                            {(orderData.shipping ?? 0) > 0
+                                                ? <span className="font-medium text-neutral-900 dark:text-neutral-100">₹{orderData.shipping}</span>
+                                                : <span className="font-medium text-green-600 dark:text-green-400">FREE</span>
+                                            }
                                         </div>
                                         
                                         <div className="pt-4 border-t border-neutral-200 dark:border-neutral-800 flex justify-between items-baseline">

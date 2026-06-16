@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Heart,
@@ -90,6 +90,7 @@ export default function ProductDetailPage() {
   });
 
   const { isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlistStore();
   const isWishlisted = isInWishlist(id || '');
 
@@ -156,18 +157,9 @@ export default function ProductDetailPage() {
         ? Math.max(0, Number(product.sizeCounts[selection.size] || 0) - Number(product.sizeReservedCounts?.[selection.size] || 0))
         : product.stock;
 
-      if (availableForSize !== undefined && availableForSize <= 0) {
-        toast.error(`${selection.size} is out of stock`);
-        return false;
-      }
-
-      if (availableForSize !== undefined && existingQuantity + selection.quantity > availableForSize) {
-        const remaining = Math.max(0, availableForSize - existingQuantity);
-        if (remaining === 0) {
-          toast.error(`You already have all available ${selection.size} item(s) in your cart.`);
-        } else {
-          toast.error(`Only ${remaining} more item(s) available for size ${selection.size}.`);
-        }
+      // Only block if we are CERTAIN stock is 0 (don't trust stale cache for partial blocks)
+      if (availableForSize !== undefined && availableForSize <= 0 && existingQuantity === 0) {
+        toast.error(`Size ${selection.size} is currently out of stock.`);
         return false;
       }
     }
@@ -187,10 +179,27 @@ export default function ProductDetailPage() {
       );
       await applyServerCartToLocalWithStock(cart);
       notifyCartChangedAcrossTabs();
+
+      // Invalidate product cache so stock display reflects the updated reserved count
+      // The server broadcasts a stockUpdate socket event, but invalidating ensures
+      // the next render fetches fresh data even if the socket event is delayed.
+      queryClient.invalidateQueries({ queryKey: ['product', id] });
+
       return true;
     } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { error?: string } } };
-      toast.error(apiError.response?.data?.error || 'Failed to add item to cart');
+      const apiError = error as { response?: { data?: { error?: string; code?: string } } };
+      const serverMsg = apiError.response?.data?.error;
+      const code = apiError.response?.data?.code;
+
+      if (code === 'OUT_OF_STOCK') {
+        toast.error('This item just sold out.');
+      } else if (code === 'MAX_QUANTITY_REACHED') {
+        toast.error(serverMsg || 'You already have the maximum available quantity in your cart.');
+      } else if (code === 'INSUFFICIENT_STOCK') {
+        toast.error(serverMsg || 'Not enough stock available.');
+      } else {
+        toast.error(serverMsg || 'Failed to add item to cart. Please try again.');
+      }
       return false;
     }
   };
@@ -365,6 +374,36 @@ export default function ProductDetailPage() {
   /* BUY NOW */
 
   const performBuyNow = async (options?: { skipAuthCheck?: boolean }) => {
+    if (!product) return;
+
+    const selections = getSelectedSizeEntries();
+    if (selections.length === 0) {
+      toast.error('Please select a size');
+      return;
+    }
+
+    const productId = getProductId(product);
+    const cartItems = useCartStore.getState().items;
+
+    // If the item (same product + size + color) is already in cart with sufficient quantity,
+    // skip trying to add again — just go straight to checkout.
+    const alreadyInCart = selections.every(sel =>
+      cartItems.some(
+        item =>
+          getProductId(item.product) === productId &&
+          item.size === sel.size &&
+          (item.color || undefined) === (selectedColor || undefined) &&
+          item.quantity >= sel.quantity
+      )
+    );
+
+    if (alreadyInCart) {
+      // Item already held — just go to checkout directly.
+      useCartStore.getState().clearReservations();
+      navigate('/checkout');
+      return;
+    }
+
     useCartStore.getState().clearReservations();
     const success = await addSelectionsToCart(options);
     if (success) {
@@ -373,10 +412,6 @@ export default function ProductDetailPage() {
   };
 
   const handleBuyNow = async () => {
-    if (totalAvailableStock <= 0) {
-      toast.error('Out of stock');
-      return;
-    }
     if (!isAuthenticated) {
       setPendingAuthAction('buy');
       setShowAuthModal(true);
@@ -386,6 +421,24 @@ export default function ProductDetailPage() {
     const selections = getSelectedSizeEntries();
     if (selections.length === 0) {
       toast.error('Please select a size');
+      return;
+    }
+
+    const productId = getProductId(product!);
+    const cartItems = useCartStore.getState().items;
+    const alreadyInCart = selections.every(sel =>
+      cartItems.some(
+        item =>
+          getProductId(item.product) === productId &&
+          item.size === sel.size &&
+          (item.color || undefined) === (selectedColor || undefined) &&
+          item.quantity >= sel.quantity
+      )
+    );
+
+    // Only block on out-of-stock if the item is NOT already in cart
+    if (!alreadyInCart && totalAvailableStock <= 0) {
+      toast.error('This item is sold out.');
       return;
     }
 
@@ -731,17 +784,21 @@ export default function ProductDetailPage() {
                         font-medium
                         transition-all
                         duration-300
-                        ${totalAvailableStock > 0 
-                          ? 'border-green-200 bg-green-50 text-green-700' 
+                        ${totalAvailableStock > 5
+                          ? 'border-green-200 bg-green-50 text-green-700'
+                          : totalAvailableStock > 0
+                          ? 'border-amber-200 bg-amber-50 text-amber-700'
                           : 'border-red-200 bg-red-50 text-red-700'
                         }
                       `}
                     >
-                      <div className={`h-2 w-2 rounded-full ${totalAvailableStock > 0 ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                      <div className={`h-2 w-2 rounded-full ${totalAvailableStock > 5 ? 'bg-green-500 animate-pulse' : totalAvailableStock > 0 ? 'bg-amber-500 animate-pulse' : 'bg-red-500'}`} />
 
-                      {totalAvailableStock > 0
-                        ? `${totalAvailableStock} In Stock`
-                        : 'Out Of Stock'}
+                      {totalAvailableStock > 5
+                        ? 'In Stock'
+                        : totalAvailableStock > 0
+                        ? `Only ${totalAvailableStock} left`
+                        : 'Sold Out'}
                     </div>
                   </div>
                 )}
@@ -816,9 +873,11 @@ export default function ProductDetailPage() {
                         transition: { duration: 0.8 }
                       } : {}}
                       disabled={isOutOfStock}
-                      onClick={() =>
-                        setSelectedSize(size)
-                      }
+                      onClick={() => {
+                        setSelectedSize(size);
+                        // Reset quantity to 1 when switching size so it never exceeds new size's stock
+                        setQuantity(1);
+                      }}
                       className={`
                         h-11
                         min-w-[84px]
@@ -859,7 +918,7 @@ export default function ProductDetailPage() {
                           animate={{ opacity: 1, scale: 1 }}
                           className={`text-[10px] ${isOutOfStock ? 'text-neutral-400' : 'opacity-75'}`}
                         >
-                          {isOutOfStock ? 'Out' : `${remaining} left`}
+                          {isOutOfStock ? 'Out' : remaining <= 3 ? `${remaining} left` : ''}
                         </motion.span>
                       </span>
                     </motion.button>
@@ -972,8 +1031,17 @@ export default function ProductDetailPage() {
                   </span>
 
                   <button
-                    onClick={() =>
-                      setQuantity(quantity + 1)
+                    onClick={() => {
+                      const maxQty = selectedSize ? getAvailableStock(selectedSize) : 0;
+                      if (maxQty > 0 && quantity >= maxQty) {
+                        toast.error(`Only ${maxQty} item${maxQty === 1 ? '' : 's'} available for size ${selectedSize}.`);
+                        return;
+                      }
+                      setQuantity(quantity + 1);
+                    }}
+                    disabled={
+                      !selectedSize ||
+                      (selectedSize ? quantity >= getAvailableStock(selectedSize) : false)
                     }
                     className="
                       flex
@@ -981,6 +1049,8 @@ export default function ProductDetailPage() {
                       w-10
                       items-center
                       justify-center
+                      disabled:opacity-40
+                      disabled:cursor-not-allowed
                     "
                   >
                     <Plus size={16} />

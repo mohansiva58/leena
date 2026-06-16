@@ -1,400 +1,211 @@
-import { Response } from 'express';
-import mongoose from 'mongoose';
-import { AuthRequest } from '../middleware/auth';
-import Cart, { ICart, ICartItem } from '../models/Cart';
-import Product from '../models/Product';
-import Sale from '../models/Sale';
-import { cacheSet, cacheDel, CACHE_TTL } from '../utils/cache';
-import { resolveSizeQuantities } from '../utils/sizeQuantities';
-import StockReservation from '../models/StockReservation';
+/**
+ * cartController.ts
+ *
+ * Thin controller layer — validates request, delegates to CartReservationService,
+ * maps errors to user-friendly messages.  No business logic here.
+ */
 
-interface ImageItem {
-    image: string;
-    images?: string[];
-    colors?: Array<{ image?: { url: string }; images?: Array<{ url: string }> }>;
-}
+import { Response } from 'express';
+import { AuthRequest } from '../middleware/auth';
+import { CartReservationService } from '../services/CartReservationService';
+import { resolveSizeQuantities } from '../utils/sizeQuantities';
+import Cart from '../models/Cart';
+import { cacheSet, CACHE_TTL } from '../utils/cache';
 
 const getCacheKey = (userId: string) => `cart:${userId}`;
 
-const resolveVariantImage = (product: ImageItem, variantImage?: string): string => {
-    if (!variantImage) return product.image;
-    const allowedImages = new Set<string>([product.image, ...(product.images || [])]);
-    if (product.colors && Array.isArray(product.colors)) {
-        for (const col of product.colors) {
-            if (col.image?.url) {
-                allowedImages.add(col.image.url);
-            }
-            if (col.images && Array.isArray(col.images)) {
-                for (const img of col.images) {
-                    if (img?.url) {
-                        allowedImages.add(img.url);
-                    }
-                }
-            }
-        }
-    }
-    return allowedImages.has(variantImage) ? variantImage : product.image;
-};
+/** Convert a service error to a user-friendly response — never expose internals. */
+function handleServiceError(error: unknown, res: Response): void {
+    const err = error as { code?: string; message?: string };
+    const code = err.code || 'UNKNOWN';
 
-const findCartCatalogItem = async (productId: string) => {
-    const product = await Product.findOne({ productId });
-    if (product) return { item: product, canonicalId: product.productId };
+    const messages: Record<string, { status: number; message: string }> = {
+        PRODUCT_NOT_FOUND:   { status: 404, message: 'This product is no longer available.' },
+        OUT_OF_STOCK:        { status: 400, message: 'This item is currently out of stock.' },
+        INSUFFICIENT_STOCK:  { status: 400, message: err.message || 'Not enough stock available.' },
+        CART_NOT_FOUND:      { status: 404, message: 'Your cart was not found. Please refresh and try again.' },
+        UNKNOWN:             { status: 500, message: 'Something went wrong. Please try again.' },
+    };
 
-    const sale = await Sale.findOne({ saleId: productId });
-    if (sale) return { item: sale, canonicalId: sale.saleId };
-
-    if (mongoose.isValidObjectId(productId)) {
-        const productById = await Product.findById(productId);
-        if (productById) return { item: productById, canonicalId: productById.productId };
-
-        const saleById = await Sale.findById(productId);
-        if (saleById) return { item: saleById, canonicalId: saleById.saleId };
-    }
-
-    return null;
-};
-
-const mapLikeToRecord = (value: unknown): Record<string, number> | undefined => {
-    if (!value) return undefined;
-    if (value instanceof Map) return Object.fromEntries(value);
-    if (typeof value === 'object') return value as Record<string, number>;
-    return undefined;
-};
-
-const getAvailableForSize = (item: { stock?: number; sizeCounts?: unknown; sizeReservedCounts?: unknown }, size: string): number => {
-    const sizeCounts = mapLikeToRecord(item.sizeCounts);
-    const sizeReservedCounts = mapLikeToRecord(item.sizeReservedCounts);
-
-    if (sizeCounts && Object.prototype.hasOwnProperty.call(sizeCounts, size)) {
-        const total = Number(sizeCounts[size] || 0);
-        const reserved = Number(sizeReservedCounts?.[size] || 0);
-        return Math.max(0, total - reserved);
-    }
-
-    return Math.max(0, Number(item.stock || 0));
-};
-
-async function getUserReservedQuantities(userId: string): Promise<Map<string, number>> {
-    const reservations = await StockReservation.find({
-        userId,
-        status: 'reserved',
-        expiresAt: { $gt: new Date() },
-    }).lean();
-
-    const quantities = new Map<string, number>();
-    for (const reservation of reservations) {
-        const key = `${reservation.productId}:${reservation.size}`;
-        quantities.set(key, (quantities.get(key) || 0) + reservation.quantity);
-    }
-    return quantities;
+    const mapped = messages[code] ?? messages.UNKNOWN;
+    console.error(`[cartController] ${code}:`, err.message);
+    res.status(mapped.status).json({ error: mapped.message, code });
 }
 
-const getPurchasableForSize = (
-    item: { stock?: number; sizeCounts?: unknown; sizeReservedCounts?: unknown },
-    size: string,
-    ownReserved = 0
-): number => {
-    return Math.max(0, getAvailableForSize(item, size) + ownReserved);
-};
-
-const removeMissingCartItems = async (cart: ICart | null): Promise<ICart | null> => {
-    if (!cart?.items?.length) return cart;
-
-    const checks = await Promise.all(
-        cart.items.map(async (item: ICartItem) => ({
-            item,
-            exists: Boolean(await findCartCatalogItem(item.productId)),
-        }))
-    );
-
-    const validItems = checks.filter((check) => check.exists).map((check) => check.item);
-    if (validItems.length !== cart.items.length) {
-        cart.items = validItems as typeof cart.items;
-        await cart.save();
-    }
-
-    return cart;
-};
-
+// ─── GET /cart ───────────────────────────────────────────────────────────────
+// Read-only: never writes. Cleanup is done by background workers.
 export const getCart = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const userId = req.user?.uid;
-        if (!userId) { res.status(401).json({ error: 'Unauthorized' }); return; }
+        if (!userId) { res.status(401).json({ error: 'Please log in to view your cart.' }); return; }
 
-        let cart = await Cart.findOne({ userId });
-        if (!cart) cart = await Cart.create({ userId, items: [] });
-        const cleanedCart = await removeMissingCartItems(cart);
-
-        await cacheSet(getCacheKey(userId), cleanedCart, CACHE_TTL.CART);
-        res.json(cleanedCart);
+        let cart = await Cart.findOne({ userId }).lean();
+        if (!cart) {
+            const created = await Cart.create({ userId, items: [] });
+            // Use toObject() to get a plain object consistent with .lean()
+            res.json(created.toObject());
+            return;
+        }
+        res.json(cart);
     } catch (error) {
         console.error('Get cart error:', error);
-        res.status(500).json({ error: 'Failed to fetch cart' });
+        res.status(500).json({ error: 'Unable to load your cart. Please refresh.' });
     }
 };
 
+// ─── POST /cart/add ──────────────────────────────────────────────────────────
 export const addToCart = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const userId = req.user?.uid;
-        if (!userId) {
-            res.status(401).json({ error: 'Unauthorized' });
-            return;
-        }
+        if (!userId) { res.status(401).json({ error: 'Please log in to add items to your cart.' }); return; }
 
         const { productId, size, quantity = 1, variantImage, color, sizeQuantities, sizeCounts } = req.body;
 
-        if (!productId) {
-            res.status(400).json({ error: 'Product ID is required' });
-            return;
-        }
+        if (!productId) { res.status(400).json({ error: 'Product ID is required.' }); return; }
 
         const sizeItems = resolveSizeQuantities({ size, quantity, sizeQuantities, sizeCounts });
-        if (sizeItems.length === 0) {
-            res.status(400).json({ error: 'At least one size and quantity is required' });
-            return;
-        }
+        if (sizeItems.length === 0) { res.status(400).json({ error: 'Please select a size.' }); return; }
 
-        // Verify product/sale exists and check stock
-        const resolved = await findCartCatalogItem(productId);
-        if (!resolved) {
-            res.status(404).json({ error: 'Product not found' });
-            return;
-        }
-        const { item: product, canonicalId } = resolved;
+        const sessionId = (req as AuthRequest & { sessionId?: string }).sessionId
+            || req.headers['x-session-id'] as string
+            || `sess_${userId}`;
 
-        const lineImage = resolveVariantImage(product, variantImage);
-
-        // Get or create cart
-        let cart = await Cart.findOne({ userId });
-        if (!cart) {
-            cart = new Cart({ userId, items: [] });
-        }
-
+        // Process each size item (usually just one)
+        let lastResult: Awaited<ReturnType<typeof CartReservationService.addToCart>> | null = null;
         for (const sizeItem of sizeItems) {
-            const availableForSize = getAvailableForSize(product, sizeItem.size);
-            const existingItemIndex = cart.items.findIndex(
-                (item) => item.productId === canonicalId && item.size === sizeItem.size && item.image === lineImage && item.color === color
-            );
-
-            const totalQuantity = existingItemIndex > -1
-                ? cart.items[existingItemIndex].quantity + sizeItem.quantity
-                : sizeItem.quantity;
-
-            if (availableForSize <= 0) {
-                res.status(400).json({ error: `${sizeItem.size} is out of stock` });
-                return;
-            }
-
-            if (totalQuantity > availableForSize) {
-                if (existingItemIndex > -1 && cart.items[existingItemIndex].quantity >= availableForSize) {
-                    continue;
-                }
-                res.status(400).json({
-                    error: `Only ${availableForSize} item(s) available for size ${sizeItem.size}. You already have ${existingItemIndex > -1 ? cart.items[existingItemIndex].quantity : 0} in your cart.`,
-                });
-                return;
-            }
-
-            if (existingItemIndex > -1) {
-                cart.items[existingItemIndex].quantity += sizeItem.quantity;
-            } else {
-                cart.items.push({
-                    productId: canonicalId,
-                    name: product.name,
-                    price: product.price,
-                    image: lineImage,
-                    size: sizeItem.size,
+            try {
+                lastResult = await CartReservationService.addToCart({
+                    userId, sessionId,
+                    productId, size: sizeItem.size,
                     quantity: sizeItem.quantity,
-                    variantImage: lineImage,
-                    color,
+                    variantImage, color,
                 });
+            } catch (err) {
+                handleServiceError(err, res);
+                return;
             }
         }
 
-        await cart.save();
+        if (!lastResult) { res.status(500).json({ error: 'Something went wrong. Please try again.' }); return; }
 
-        // Update cache
-        await cacheSet(getCacheKey(userId), cart, CACHE_TTL.CART);
-
-        res.json(cart);
+        res.json({
+            ...lastResult.cart.toObject(),
+            _meta: {
+                adjusted: lastResult.adjusted,
+                availableToBuy: lastResult.availableToBuy,
+                reservationId: lastResult.reservationId,
+                reservationExpiresAt: lastResult.reservationExpiresAt,
+                ...(lastResult.adjusted ? {
+                    adjustedMessage: `Only ${lastResult.availableToBuy} item${lastResult.availableToBuy === 1 ? '' : 's'} available. Your cart has been updated.`
+                } : {}),
+            },
+        });
     } catch (error) {
         console.error('Add to cart error:', error);
-        res.status(500).json({ error: 'Failed to add item to cart' });
+        res.status(500).json({ error: 'Something went wrong. Please try again.' });
     }
 };
 
+// ─── PUT /cart/update ────────────────────────────────────────────────────────
 export const updateCartItem = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const userId = req.user?.uid;
-        if (!userId) { res.status(401).json({ error: 'Unauthorized' }); return; }
+        if (!userId) { res.status(401).json({ error: 'Please log in to update your cart.' }); return; }
 
         const { productId, size, quantity, color, variantImage, sizeQuantities, sizeCounts } = req.body;
-
-        if (!productId) {
-            res.status(400).json({ error: 'Product ID is required' });
-            return;
-        }
+        if (!productId) { res.status(400).json({ error: 'Product ID is required.' }); return; }
 
         const sizeItems = resolveSizeQuantities({ size, quantity, sizeQuantities, sizeCounts });
-        if (sizeItems.length === 0) {
-            res.status(400).json({ error: 'At least one size and quantity is required' });
-            return;
+        if (sizeItems.length === 0 || sizeItems.length > 1) {
+            res.status(400).json({ error: 'Please provide a single size and quantity.' }); return;
         }
 
-        // Check product/sale stock
-        const resolved = await findCartCatalogItem(productId);
-        if (!resolved) {
-            res.status(404).json({ error: 'Product not found' });
-            return;
+        const sessionId = (req as AuthRequest & { sessionId?: string }).sessionId
+            || req.headers['x-session-id'] as string
+            || `sess_${userId}`;
+
+        try {
+            const result = await CartReservationService.updateCartItem({
+                userId, sessionId,
+                productId, size: sizeItems[0].size,
+                newQuantity: sizeItems[0].quantity,
+                color, variantImage,
+            });
+
+            res.json({
+                ...result.cart.toObject(),
+                _meta: {
+                    adjusted: result.adjusted,
+                    previousQuantity: result.previousQuantity,
+                    newQuantity: result.newQuantity,
+                    availableToBuy: result.availableToBuy,
+                    ...(result.adjusted ? {
+                        adjustedMessage: `Quantity updated to ${result.newQuantity}. Only ${result.availableToBuy} item${result.availableToBuy === 1 ? '' : 's'} available.`
+                    } : {}),
+                },
+            });
+        } catch (err) {
+            handleServiceError(err, res);
         }
-        const { item: product, canonicalId } = resolved;
-
-        const cart = await Cart.findOne({ userId });
-        if (!cart) {
-            res.status(404).json({ error: 'Cart not found' });
-            return;
-        }
-
-        if (sizeItems.length !== 1) {
-            res.status(400).json({ error: 'Updating multiple sizes at once is not supported. Please update sizes individually.' });
-            return;
-        }
-
-        const availableForSize = getAvailableForSize(product, sizeItems[0].size);
-        if (availableForSize <= 0) {
-            res.status(400).json({ error: `${sizeItems[0].size} is out of stock` });
-            return;
-        }
-
-        if (sizeItems[0].quantity > availableForSize) {
-            res.status(400).json({ error: `Only ${availableForSize} item(s) available for size ${sizeItems[0].size}` });
-            return;
-        }
-
-        const itemIndex = cart.items.findIndex(
-            (item) =>
-                item.productId === canonicalId &&
-                item.size === sizeItems[0].size &&
-                (color === undefined || item.color === color) &&
-                (variantImage === undefined || item.image === variantImage || item.variantImage === variantImage)
-        );
-
-        if (itemIndex === -1) {
-            res.status(404).json({ error: 'Item not found in cart' });
-            return;
-        }
-
-        cart.items[itemIndex].quantity = sizeItems[0].quantity;
-        await cart.save();
-
-        await cacheSet(getCacheKey(userId), cart, CACHE_TTL.CART);
-        res.json(cart);
     } catch (error) {
         console.error('Update cart error:', error);
-        res.status(500).json({ error: 'Failed to update cart' });
+        res.status(500).json({ error: 'Something went wrong updating your cart. Please try again.' });
     }
 };
 
+// ─── DELETE /cart/remove/:productId/:size ────────────────────────────────────
 export const removeFromCart = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const userId = req.user?.uid;
-        if (!userId) { res.status(401).json({ error: 'Unauthorized' }); return; }
+        if (!userId) { res.status(401).json({ error: 'Please log in.' }); return; }
 
         const { productId, size } = req.params;
         const color = req.query.color as string | undefined;
         const variantImage = req.query.variantImage as string | undefined;
 
-        const cart = await Cart.findOne({ userId });
-        if (!cart) { res.status(404).json({ error: 'Cart not found' }); return; }
-
-        cart.items = cart.items.filter(
-            (item) =>
-                !(
-                    item.productId === productId &&
-                    item.size === size &&
-                    (!color || item.color === color) &&
-                    (!variantImage || item.image === variantImage || item.variantImage === variantImage)
-                )
-        );
-        await cart.save();
-
-        await cacheSet(getCacheKey(userId), cart, CACHE_TTL.CART);
-        res.json(cart);
+        try {
+            const result = await CartReservationService.removeFromCart({ userId, productId, size, color, variantImage });
+            res.json(result.cart.toObject());
+        } catch (err) {
+            handleServiceError(err, res);
+        }
     } catch (error) {
         console.error('Remove from cart error:', error);
-        res.status(500).json({ error: 'Failed to remove item from cart' });
+        res.status(500).json({ error: 'Failed to remove item. Please try again.' });
     }
 };
 
+// ─── DELETE /cart/clear ──────────────────────────────────────────────────────
 export const clearCart = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const userId = req.user?.uid;
-        if (!userId) { res.status(401).json({ error: 'Unauthorized' }); return; }
+        if (!userId) { res.status(401).json({ error: 'Please log in.' }); return; }
 
-        const cart = await Cart.findOne({ userId });
-        if (cart) {
-            cart.items = [];
-            await cart.save();
-        }
-
-        await cacheDel(getCacheKey(userId));
-        res.json({ message: 'Cart cleared successfully' });
+        await CartReservationService.clearCart({ userId });
+        res.json({ success: true, message: 'Cart cleared.' });
     } catch (error) {
         console.error('Clear cart error:', error);
-        res.status(500).json({ error: 'Failed to clear cart' });
+        res.status(500).json({ error: 'Failed to clear cart. Please try again.' });
     }
 };
 
+// ─── GET /cart/availability ───────────────────────────────────────────────────
+// Single efficient query — backend is source of truth, no N+1.
 export const getCartAvailability = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const userId = req.user?.uid;
-        if (!userId) {
-            res.status(401).json({ error: 'Unauthorized' });
-            return;
-        }
+        if (!userId) { res.status(401).json({ error: 'Please log in.' }); return; }
 
-        const cart = await Cart.findOne({ userId });
-        const items = cart?.items || [];
-        const availability = [];
-        let allAvailable = true;
-        const ownReservedByLine = await getUserReservedQuantities(userId);
-
-        for (const item of items) {
-            const resolved = await findCartCatalogItem(item.productId);
-            if (!resolved) {
-                allAvailable = false;
-                availability.push({
-                    productId: item.productId,
-                    size: item.size,
-                    quantity: item.quantity,
-                    available: false,
-                    maxAvailable: 0,
-                    message: 'Item is no longer available',
-                });
-                continue;
-            }
-
-            const catalogItem = resolved.item;
-            const ownReserved = ownReservedByLine.get(`${resolved.canonicalId}:${item.size}`) || 0;
-            const maxAvailable = getPurchasableForSize(catalogItem, item.size, ownReserved);
-            const isAvailable = maxAvailable >= item.quantity;
-
-            if (!isAvailable) allAvailable = false;
-
-            availability.push({
-                productId: item.productId,
-                size: item.size,
-                color: item.color,
-                quantity: item.quantity,
-                available: isAvailable,
-                maxAvailable,
-                message: isAvailable ? undefined : `Only ${maxAvailable} available for size ${item.size}`,
-            });
-        }
-
-        res.json({ available: allAvailable, items: availability });
+        const result = await CartReservationService.getCartAvailability(userId);
+        res.json(result);
     } catch (error) {
         console.error('Cart availability error:', error);
-        res.status(500).json({ error: 'Failed to check cart availability' });
+        // Return a safe response so frontend can retry rather than crashing
+        res.status(200).json({
+            available: false,
+            items: [],
+            hasExpiredReservations: false,
+            _error: 'We\'re refreshing inventory information. Please try again in a moment.',
+        });
     }
 };

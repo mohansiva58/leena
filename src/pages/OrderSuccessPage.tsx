@@ -65,7 +65,7 @@ export default function OrderSuccessPage() {
             />
             <Header />
             
-            <main className="flex-1 max-w-4xl mx-auto w-full px-4 pt-28 pb-16">
+            <main className="flex-1 max-w-4xl mx-auto w-full px-3 sm:px-4 pt-28 pb-16">
                 <motion.div 
                     initial={{ scale: 0.96, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
@@ -73,7 +73,7 @@ export default function OrderSuccessPage() {
                     className="bg-white dark:bg-[#1E1E1E] rounded-[32px] border border-neutral-100 dark:border-neutral-800 shadow-[0_10px_40px_rgba(0,0,0,0.03)] overflow-hidden"
                 >
                     {/* Brand Banner & Elegant Hero Success */}
-                    <div className="relative bg-gradient-to-br from-[#66021F] to-[#400113] p-10 text-white text-center overflow-hidden">
+                    <div className="relative bg-gradient-to-br from-[#66021F] to-[#400113] p-6 sm:p-10 text-white text-center overflow-hidden">
                         {/* Decorative glass elements */}
                         <div className="absolute top-[-50px] left-[-50px] w-48 h-48 bg-white/5 rounded-full blur-3xl pointer-events-none" />
                         <div className="absolute bottom-[-50px] right-[-50px] w-48 h-48 bg-white/5 rounded-full blur-3xl pointer-events-none" />
@@ -109,14 +109,14 @@ export default function OrderSuccessPage() {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             transition={{ delay: 0.5 }}
-                            className="mt-6 inline-flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full border border-white/10 text-xs font-mono tracking-wider"
+                            className="mt-6 inline-flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full border border-white/10 text-xs font-mono tracking-wider max-w-full overflow-hidden"
                         >
-                            <span>ORDER ID:</span>
-                            <span className="font-bold">{orderData.orderId}</span>
+                            <span className="shrink-0">ORDER ID:</span>
+                            <span className="font-bold truncate">{orderData.orderId}</span>
                         </motion.div>
                     </div>
 
-                    <div className="p-8 lg:p-10 space-y-10">
+                    <div className="p-5 sm:p-8 lg:p-10 space-y-10">
                         {/* Highlights Grid */}
                         <div className="grid sm:grid-cols-2 gap-4">
                             <div className="p-5 bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-2xl flex items-start gap-4">
@@ -201,30 +201,30 @@ export default function OrderSuccessPage() {
                                     <h3 className="font-serif text-xl font-bold border-b border-neutral-100 dark:border-neutral-800 pb-3 text-neutral-900 dark:text-neutral-100">
                                         Receipt Details
                                     </h3>
-                                    <div className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-                                        <div className="flex justify-between text-sm text-neutral-600 dark:text-neutral-400">
-                                            <span>Basket Subtotal</span>
-                                            <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                                    <div className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-2xl p-4 sm:p-6 space-y-4">
+                                        <div className="flex justify-between items-center text-sm text-neutral-600 dark:text-neutral-400 gap-2">
+                                            <span className="shrink-0">Basket Subtotal</span>
+                                            <span className="font-medium text-neutral-900 dark:text-neutral-100 text-right">
                                                 ₹{(orderData.subtotal || orderData.total).toLocaleString()}
                                             </span>
                                         </div>
                                         {orderData.discount > 0 && (
-                                            <div className="flex justify-between text-sm text-green-600 dark:text-green-400 font-medium">
-                                                <span>Coupon Discount</span>
-                                                <span>-₹{orderData.discount.toLocaleString()}</span>
+                                            <div className="flex justify-between items-center text-sm text-green-600 dark:text-green-400 font-medium gap-2">
+                                                <span className="shrink-0">Coupon Discount</span>
+                                                <span className="text-right">-₹{orderData.discount.toLocaleString()}</span>
                                             </div>
                                         )}
-                                        <div className="flex justify-between text-sm text-neutral-600 dark:text-neutral-400">
-                                            <span>Delivery Charge</span>
+                                        <div className="flex justify-between items-center text-sm text-neutral-600 dark:text-neutral-400 gap-2">
+                                            <span className="shrink-0">Delivery Charge</span>
                                             {(orderData.shipping ?? 0) > 0
                                                 ? <span className="font-medium text-neutral-900 dark:text-neutral-100">₹{orderData.shipping}</span>
                                                 : <span className="font-medium text-green-600 dark:text-green-400">FREE</span>
                                             }
                                         </div>
                                         
-                                        <div className="pt-4 border-t border-neutral-200 dark:border-neutral-800 flex justify-between items-baseline">
-                                            <span className="font-bold text-neutral-900 dark:text-neutral-100">Total Paid</span>
-                                            <span className="text-2xl font-bold text-[#66021F]">
+                                        <div className="pt-4 border-t border-neutral-200 dark:border-neutral-800 flex justify-between items-center gap-2">
+                                            <span className="font-bold text-neutral-900 dark:text-neutral-100 shrink-0">Total Paid</span>
+                                            <span className="text-xl sm:text-2xl font-bold text-[#66021F] text-right">
                                                 ₹{orderData.total.toLocaleString()}
                                             </span>
                                         </div>

@@ -465,13 +465,8 @@ export const getOrderById = async (req: AuthRequest, res: Response): Promise<voi
 
         res.json(order);
     } catch (error: unknown) {
-        const err = error as Error;
-        console.error('Create order error:', err);
-        if (err.message?.includes('Stock conflict')) {
-            res.status(400).json({ error: err.message });
-            return;
-        }
-        res.status(500).json({ error: 'Failed to create order' });
+        console.error('Get order error:', error);
+        res.status(500).json({ error: 'Failed to fetch order' });
     }
 };
 

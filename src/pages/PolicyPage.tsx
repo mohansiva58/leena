@@ -2,6 +2,7 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { SEO } from '@/components/SEO';
 import { seoConfig } from '@/lib/seoConfig';
+import { useEffect } from 'react';
 import { 
   Mail, 
   ShieldAlert, 
@@ -41,6 +42,10 @@ const getSectionIcon = (heading: string) => {
 };
 
 export function PolicyPage({ title, intro, sections, bulletList = false }: PolicyPageProps) {
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, []);
+
   const policyPath =
     title === 'Privacy Policy'
       ? '/privacy-policy'
@@ -224,6 +229,10 @@ export function RefundPolicyPage() {
 }
 
 export function ContactPage() {
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, []);
+
   return (
     <div className="min-h-screen bg-background">
       <SEO

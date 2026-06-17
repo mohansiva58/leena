@@ -732,7 +732,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: AddProd
                                     onChange={handleCheckboxChange}
                                     className="w-4 h-4 accent-[#06095b] rounded border-border"
                                 />
-                                <span className="text-sm font-medium">Bestseller</span>
+                                <span className="text-sm font-medium">On Sale</span>
                             </label>
                         </div>
                     </form>

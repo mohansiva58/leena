@@ -227,9 +227,9 @@ export default function ShopPage() {
                 {search
                   ? `Search: "${search}"`
                   : filterParam === 'new'
-                    ? 'The New Collection'
+                    ? 'New Arrivals'
                     : filterParam === 'bestseller'
-                      ? 'ON SALE'
+                      ? 'On Sale'
                       : categoryParam
                         ? categoryParam
                         : 'Shop All'}

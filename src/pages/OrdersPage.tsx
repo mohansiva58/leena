@@ -70,6 +70,10 @@ export default function OrdersPage() {
     const [trackId, setTrackId] = useState('');
 
     useEffect(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }, []);
+
+    useEffect(() => {
         fetchOrders();
     }, []);
 

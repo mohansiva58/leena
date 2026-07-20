@@ -28,7 +28,7 @@ CLOUDINARY_API_SECRET=your_api_secret
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USER=your-email@gmail.com
-EMAIL_PASSWORD=your_gmail_app_password
+EMAIL_PASS=your_gmail_app_password
 
 # Frontend URL (add after deploying frontend)
 FRONTEND_URL=https://your-frontend.vercel.app

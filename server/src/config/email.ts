@@ -7,10 +7,14 @@ export const initializeEmailService = () => {
     const emailHost = process.env.EMAIL_HOST;
     const emailPort = process.env.EMAIL_PORT;
     const emailUser = process.env.EMAIL_USER;
-    const emailPass = process.env.EMAIL_PASS;
+    const emailPass = process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
 
     if (!emailHost || !emailPort || !emailUser || !emailPass) {
-      throw new Error('Email configuration missing in environment variables');
+      throw new Error('Email configuration missing in environment variables (expected EMAIL_HOST, EMAIL_PORT, EMAIL_USER, and EMAIL_PASS or EMAIL_PASSWORD)');
+    }
+
+    if (!process.env.EMAIL_PASS && process.env.EMAIL_PASSWORD) {
+      console.warn('⚠️  EMAIL_PASS is missing; falling back to EMAIL_PASSWORD for SMTP auth');
     }
 
     transporter = nodemailer.createTransport({

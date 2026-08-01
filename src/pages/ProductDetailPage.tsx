@@ -34,7 +34,8 @@ import { useRealTimeStock } from '@/hooks/useRealTimeStock';
 import { productService } from '@/services/productService';
 import { saleService } from '@/services/saleService';
 import { cartService } from '@/services/cartService';
-import { applyServerCartToLocalWithStock, notifyCartChangedAcrossTabs } from '@/lib/cartServerSync';
+import { applyServerCartToLocal, notifyCartChangedAcrossTabs } from '@/lib/cartServerSync';
+import { preloadCheckoutPage } from '@/lib/preloadRoutes';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SEO } from '@/components/SEO';
 import { seoConfig } from '@/lib/seoConfig';
@@ -128,41 +129,145 @@ export default function ProductDetailPage() {
     return [{ size: selectedSize, quantity }];
   };
 
-  const addSelectionsToCart = async (options?: { skipAuthCheck?: boolean }) => {
-    if (!product) return false;
+  const getActiveColorVariant = () => {
+    return product?.colors?.find((c) => c.colorName === selectedColor);
+  };
+
+  const getCartSelectionPayload = () => {
+    if (!product) return null;
 
     const selections = getSelectedSizeEntries();
-    if (selections.length === 0) {
+    if (selections.length === 0) return null;
+
+    const activeColorVariant = getActiveColorVariant();
+    const cartImage = selectedImage || activeColorVariant?.image?.url || product.image;
+
+    return {
+      selections,
+      cartImage,
+      productId: getProductId(product),
+      color: selectedColor || undefined,
+    };
+  };
+
+  const getAvailableForSize = (size: string) => {
+    if (!product) return undefined;
+
+    return product.sizeCounts && Object.prototype.hasOwnProperty.call(product.sizeCounts, size)
+      ? Math.max(0, Number(product.sizeCounts[size] || 0) - Number(product.sizeReservedCounts?.[size] || 0))
+      : product.stock;
+  };
+
+  const getExistingCartQuantity = (
+    payload: NonNullable<ReturnType<typeof getCartSelectionPayload>>,
+    size: string
+  ) => {
+    return useCartStore.getState().items.reduce((sum, item) => {
+      return getProductId(item.product) === payload.productId &&
+        item.size === size &&
+        item.color === payload.color &&
+        getCartItemImage(item) === payload.cartImage
+        ? sum + item.quantity
+        : sum;
+    }, 0);
+  };
+
+  const validateCartSelectionStock = (
+    payload: NonNullable<ReturnType<typeof getCartSelectionPayload>>
+  ) => {
+    for (const selection of payload.selections) {
+      const availableForSize = getAvailableForSize(selection.size);
+      const existingQuantity = getExistingCartQuantity(payload, selection.size);
+
+      if (availableForSize !== undefined && existingQuantity + selection.quantity > availableForSize) {
+        toast.error(`Only ${availableForSize} item${availableForSize === 1 ? '' : 's'} available for size ${selection.size}.`);
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const getOptimisticCartProduct = (selection: { size: string; quantity: number }) => {
+    if (!product) return null;
+
+    return {
+      ...product,
+      sizeCounts: product.sizeCounts ?? { [selection.size]: product.stock ?? selection.quantity },
+      sizeReservedCounts: product.sizeReservedCounts ?? { [selection.size]: 0 },
+    };
+  };
+
+  const addSelectionsToLocalCart = () => {
+    if (!product) return false;
+
+    const payload = getCartSelectionPayload();
+    if (!payload) {
       toast.error('Please select a size');
       return false;
     }
 
-    const activeColorVariant = product.colors?.find(
-      (c) => c.colorName === selectedColor
-    );
-    const cartImage = selectedImage || activeColorVariant?.image?.url || product.image;
-    const productId = getProductId(product);
+    const store = useCartStore.getState();
 
-    for (const selection of selections) {
-      const existingQuantity = useCartStore.getState().items.reduce((sum, item) => {
-        return getProductId(item.product) === productId &&
-          item.size === selection.size &&
-          item.color === (selectedColor || undefined) &&
-          getCartItemImage(item) === cartImage
-          ? sum + item.quantity
-          : sum;
-      }, 0);
+    if (!validateCartSelectionStock(payload)) return false;
 
-      const availableForSize = product.sizeCounts && Object.prototype.hasOwnProperty.call(product.sizeCounts, selection.size)
-        ? Math.max(0, Number(product.sizeCounts[selection.size] || 0) - Number(product.sizeReservedCounts?.[selection.size] || 0))
-        : product.stock;
+    const successfulAdditions: Array<{
+      selection: { size: string; quantity: number };
+      previousQuantity: number;
+    }> = [];
 
-      // Only block if we are CERTAIN stock is 0 (don't trust stale cache for partial blocks)
-      if (availableForSize !== undefined && availableForSize <= 0 && existingQuantity === 0) {
+    for (const selection of payload.selections) {
+      const optimisticProduct = getOptimisticCartProduct(selection);
+      if (!optimisticProduct) return false;
+
+      const previousQuantity = getExistingCartQuantity(payload, selection.size);
+
+      const added = store.addItem(
+        optimisticProduct,
+        selection.size,
+        selection.quantity,
+        payload.cartImage,
+        payload.color
+      );
+
+      if (!added) {
+        for (const addedSelection of successfulAdditions.reverse()) {
+          store.removeItem(payload.productId, addedSelection.selection.size, payload.cartImage, payload.color);
+          if (addedSelection.previousQuantity > 0) {
+            store.addItem(
+              getOptimisticCartProduct({
+                size: addedSelection.selection.size,
+                quantity: addedSelection.previousQuantity,
+              }) || product,
+              addedSelection.selection.size,
+              addedSelection.previousQuantity,
+              payload.cartImage,
+              payload.color
+            );
+          }
+        }
+        notifyCartChangedAcrossTabs();
         toast.error(`Size ${selection.size} is currently out of stock.`);
         return false;
       }
+
+      successfulAdditions.push({ selection, previousQuantity });
     }
+
+    notifyCartChangedAcrossTabs();
+    return true;
+  };
+
+  const addSelectionsToCart = async (options?: { skipAuthCheck?: boolean }) => {
+    if (!product) return false;
+
+    const payload = getCartSelectionPayload();
+    if (!payload) {
+      toast.error('Please select a size');
+      return false;
+    }
+
+    if (!validateCartSelectionStock(payload)) return false;
 
     if (!options?.skipAuthCheck && !isAuthenticated) {
       return false;
@@ -170,14 +275,14 @@ export default function ProductDetailPage() {
 
     try {
       const cart = await cartService.addToCart(
-        productId,
-        selections[0].size,
-        selections[0].quantity,
-        cartImage,
-        selectedColor || undefined,
-        selections
+        payload.productId,
+        payload.selections[0].size,
+        payload.selections[0].quantity,
+        payload.cartImage,
+        payload.color,
+        payload.selections
       );
-      await applyServerCartToLocalWithStock(cart);
+      applyServerCartToLocal(cart);
       notifyCartChangedAcrossTabs();
 
       // Invalidate product cache so stock display reflects the updated reserved count
@@ -225,6 +330,12 @@ export default function ProductDetailPage() {
     setSizeCounts({});
     window.scrollTo(0, 0);
   }, [id]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      void preloadCheckoutPage();
+    }
+  }, [isAuthenticated]);
 
   if (loading) {
     return (
@@ -405,6 +516,14 @@ export default function ProductDetailPage() {
     }
 
     useCartStore.getState().clearReservations();
+    if (options?.skipAuthCheck || isAuthenticated) {
+      const addedLocally = addSelectionsToLocalCart();
+      if (addedLocally) {
+        navigate('/checkout');
+      }
+      return;
+    }
+
     const success = await addSelectionsToCart(options);
     if (success) {
       navigate('/checkout');
@@ -1089,6 +1208,9 @@ export default function ProductDetailPage() {
 
                 <button
                   onClick={handleBuyNow}
+                  onFocus={() => void preloadCheckoutPage()}
+                  onMouseEnter={() => void preloadCheckoutPage()}
+                  onTouchStart={() => void preloadCheckoutPage()}
                   disabled={totalAvailableStock <= 0}
                   className="
                     flex-1

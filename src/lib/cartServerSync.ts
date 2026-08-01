@@ -32,7 +32,7 @@ function getServerQuantityForLocal(serverItems: ServerCartItem[], localRow: Cart
 }
 
 function serverLineToProduct(line: ServerCartItem, maxAvailable?: number): Product {
-  const available = maxAvailable ?? 0;
+  const available = maxAvailable ?? line.quantity;
   return {
     productId: line.productId,
     id: line.productId,

@@ -7,12 +7,13 @@ import { AuthProvider } from "./contexts/AuthContext";
 import Index from "./pages/Index";
 import logo from "@/assets/logo.png";
 import { ContactPage, PrivacyPolicyPage, RefundPolicyPage, TermsPage } from "./pages/PolicyPage";
+import { preloadCheckoutPage } from "./lib/preloadRoutes";
 
 // Lazy-loaded routes for better bundle splitting
 const ShopPage = lazy(() => import("./pages/ShopPage"));
 const ProductDetailPage = lazy(() => import("./pages/ProductDetailPage"));
 const CartPage = lazy(() => import("./pages/CartPage"));
-const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
+const CheckoutPage = lazy(preloadCheckoutPage);
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const OrdersPage = lazy(() => import("./pages/OrdersPage"));
 const AboutPage = lazy(() => import("./pages/Aboutpage"));

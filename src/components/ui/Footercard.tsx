@@ -5,7 +5,7 @@ import logo from '@/assets/logo.png';
 
 export default function Footercard() {
     return (
-        <footer className="bg-secondary pt-16 pb-8">
+        <footer className="bg-secondary pt-16 pb-28 lg:pb-8">
             <div className="container mx-auto px-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
                     {/* Brand */}
@@ -122,11 +122,11 @@ export default function Footercard() {
                         <p className="font-serif text-[#02013f] italic text-sm flex items-center gap-1.5 justify-center">
                             <span className="text-[#02013f]/60">✦</span> LEENA by Alekhya <span className="text-[#02013f]/60">✦</span>
                         </p>
-                        <div className="flex gap-4 text-sm text-muted-foreground animate-fade-in">
-                            <Link to="/privacy-policy" className="hover:text-[#02013f] transition-colors">Privacy Policy</Link>
-                            <Link to="/terms-and-conditions" className="hover:text-[#02013f] transition-colors">Terms & Conditions</Link>
-                            <Link to="/refund-return-policy" className="hover:text-[#02013f] transition-colors">Refund Policy</Link>
-                            {/* <Link to="/developedby-sybarites" className="hover:text-[#02013f] transition-colors">Developed by Sybarites</Link> */}
+                        <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm text-muted-foreground animate-fade-in md:justify-end">
+                            {/* <Link to="/privacy-policy" className="hover:text-[#02013f] transition-colors">Privacy Policy</Link> */}
+                            {/* <Link to="/terms-and-conditions" className="hover:text-[#02013f] transition-colors">Terms & Conditions</Link> */}
+                            {/* <Link to="/refund-return-policy" className="hover:text-[#02013f] transition-colors">Refund Policy</Link> */}
+                            <Link to="/developedby-sybarites" className="font-semibold text-[#02013f] transition-colors hover:text-[#000b5f]">Developed by Sybarites</Link>
                         </div>
                     </div>
                 </div>

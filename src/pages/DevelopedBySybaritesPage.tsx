@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Code2, ExternalLink, Globe2, Home, Instagram, Layers3, ShieldCheck, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -49,6 +50,10 @@ const stats = [
 ];
 
 export default function DevelopedBySybaritesPage() {
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, []);
+
   const pagePath = '/developedby-sybarites';
   const description =
     'Sybarites Tech builds professional websites and custom applications using advanced technologies, code implementation, and flexible solutions based on each client budget range and requirements.';

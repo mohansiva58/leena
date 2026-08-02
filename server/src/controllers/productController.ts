@@ -250,7 +250,7 @@ export const releaseStock = async (req: Request, res: Response): Promise<void> =
 
 export const getAllProducts = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { category, minPrice, maxPrice, search, sort, page, limit, size, filter } = req.query;
+        const { category, minPrice, maxPrice, search, sort, page, limit, size, filter, fresh } = req.query;
         const query: Record<string, unknown> = {};
 
         if (category && category !== 'All') query.category = category;
@@ -276,8 +276,11 @@ export const getAllProducts = async (req: Request, res: Response): Promise<void>
         if (!wantsPagination && isUnfiltered && !sort) cacheKey = 'products:recent';
         if (!wantsPagination && isUnfiltered && sort === 'popular') cacheKey = 'products:popular';
 
-        const cached = await cacheGet(cacheKey);
-        if (cached) { res.json(cached); return; }
+        const skipCache = fresh === 'true' || fresh === '1';
+        if (!skipCache) {
+            const cached = await cacheGet(cacheKey);
+            if (cached) { res.json(cached); return; }
+        }
 
         let sortOption: string | Record<string, mongoose.SortOrder> = { createdAt: -1 };
         if (sort === 'price-asc') sortOption = { price: 1 };
@@ -301,13 +304,13 @@ export const getAllProducts = async (req: Request, res: Response): Promise<void>
                 limit: pageSize,
                 hasMore: pageNumber * pageSize < total,
             };
-            await cacheSet(cacheKey, payload, CACHE_TTL.PRODUCTS);
+            if (!skipCache) await cacheSet(cacheKey, payload, CACHE_TTL.PRODUCTS);
             res.json(payload);
             return;
         }
 
         const ttl = cacheKey === 'products:recent' ? CACHE_TTL.RECENT : cacheKey === 'products:popular' ? CACHE_TTL.FREQUENT : CACHE_TTL.PRODUCTS;
-        await cacheSet(cacheKey, products, ttl);
+        if (!skipCache) await cacheSet(cacheKey, products, ttl);
         res.json(products);
     } catch (error) {
         console.error('Get products error:', error);

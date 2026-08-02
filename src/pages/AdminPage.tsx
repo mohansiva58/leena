@@ -227,7 +227,7 @@ export default function AdminPage() {
     try {
       setLoading(true);
       // Add cache-busting parameter to force fresh data
-      const response = await api.get(`/products?_=${Date.now()}`);
+      const response = await api.get(`/products?fresh=true&_=${Date.now()}`);
       setProducts(normalizeList<Product>(response.data, ['products']));
     } catch (error) {
       console.error('Failed to fetch products:', error);

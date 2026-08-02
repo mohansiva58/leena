@@ -314,9 +314,23 @@ export default function CartPage() {
             </motion.div>
           )}
 
-          <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="font-serif text-4xl font-bold text-foreground mb-8">
-            Shopping Cart ({items.length})
-          </motion.h1>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <h1 className="font-serif text-4xl font-bold text-foreground">
+              Shopping Cart ({items.length})
+            </h1>
+
+            <button
+              onClick={handleClearCart}
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition-colors hover:bg-red-100 hover:border-red-300 hover:text-red-800"
+            >
+              <Trash2 size={16} />
+              Clear Cart
+            </button>
+          </motion.div>
 
           <div className="grid lg:grid-cols-3 gap-8">
             {/* ── Cart Items ────────────────────────────────────────────── */}
@@ -440,9 +454,6 @@ export default function CartPage() {
                 })}
               </AnimatePresence>
 
-              <button onClick={handleClearCart} className="text-sm text-muted-foreground hover:text-destructive transition-colors">
-                Clear Cart
-              </button>
             </div>
 
             {/* ── Order Summary ─────────────────────────────────────────── */}

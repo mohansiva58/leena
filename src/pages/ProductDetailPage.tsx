@@ -13,6 +13,7 @@ import {
   Star,
   Sparkles,
   CreditCard,
+  Loader2,
 } from 'lucide-react';
 
 import { toast } from 'sonner';
@@ -53,6 +54,8 @@ export default function ProductDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [sizeCounts, setSizeCounts] = useState<Record<string, number>>({});
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isBuyingNow, setIsBuyingNow] = useState(false);
+  const [pendingBuyNowPayload, setPendingBuyNowPayload] = useState<NonNullable<ReturnType<typeof createBuyNowPayload>> | null>(null);
 
   // Fetch product using React Query
   const { data: product, isLoading: loading } = useQuery({
@@ -150,6 +153,17 @@ export default function ProductDetailPage() {
     };
   };
 
+  const createBuyNowPayload = () => {
+    const payload = getCartSelectionPayload();
+    if (!payload) return null;
+
+    return {
+      ...payload,
+      cartItems: [...useCartStore.getState().items],
+      totalAvailableStock,
+    };
+  };
+
   const getAvailableForSize = (size: string) => {
     if (!product) return undefined;
 
@@ -198,10 +212,12 @@ export default function ProductDetailPage() {
     };
   };
 
-  const addSelectionsToLocalCart = () => {
+  const addSelectionsToLocalCart = (
+    payloadInput?: NonNullable<ReturnType<typeof createBuyNowPayload>>
+  ) => {
     if (!product) return false;
 
-    const payload = getCartSelectionPayload();
+    const payload = payloadInput ?? getCartSelectionPayload();
     if (!payload) {
       toast.error('Please select a size');
       return false;
@@ -455,9 +471,26 @@ export default function ProductDetailPage() {
     ? Object.keys(sizeAvailability).reduce((acc, size) => acc + getAvailableStock(size), 0)
     : Math.max(0, (product.stock || 0) - Object.values(sizeReserved).reduce((a, b) => a + b, 0));
 
+  const buyNowSelectionPayload = getCartSelectionPayload();
+  const buyNowAlreadyInCart = buyNowSelectionPayload
+    ? buyNowSelectionPayload.selections.every((sel) =>
+        useCartStore.getState().items.some(
+          (item) =>
+            getProductId(item.product) === buyNowSelectionPayload.productId &&
+            item.size === sel.size &&
+            (item.color || undefined) === (buyNowSelectionPayload.color || undefined) &&
+            item.quantity >= sel.quantity
+        )
+      )
+    : false;
+
   /* ADD TO CART */
 
   const handleAddToCart = async () => {
+    if (isBuyingNow) {
+      return;
+    }
+
     if (totalAvailableStock <= 0) {
       toast.error('Out of stock');
       return;
@@ -484,26 +517,26 @@ export default function ProductDetailPage() {
 
   /* BUY NOW */
 
-  const performBuyNow = async (options?: { skipAuthCheck?: boolean }) => {
-    if (!product) return;
-
-    const selections = getSelectedSizeEntries();
-    if (selections.length === 0) {
+  const performBuyNow = async (
+    payload: NonNullable<ReturnType<typeof createBuyNowPayload>>,
+    options?: { skipAuthCheck?: boolean }
+  ) => {
+    if (payload.selections.length === 0) {
       toast.error('Please select a size');
       return;
     }
 
-    const productId = getProductId(product);
-    const cartItems = useCartStore.getState().items;
+    const productId = payload.productId;
+    const cartItems = payload.cartItems;
 
     // If the item (same product + size + color) is already in cart with sufficient quantity,
     // skip trying to add again — just go straight to checkout.
-    const alreadyInCart = selections.every(sel =>
+    const alreadyInCart = payload.selections.every(sel =>
       cartItems.some(
         item =>
           getProductId(item.product) === productId &&
           item.size === sel.size &&
-          (item.color || undefined) === (selectedColor || undefined) &&
+          (item.color || undefined) === (payload.color || undefined) &&
           item.quantity >= sel.quantity
       )
     );
@@ -511,15 +544,15 @@ export default function ProductDetailPage() {
     if (alreadyInCart) {
       // Item already held — just go to checkout directly.
       useCartStore.getState().clearReservations();
-      navigate('/checkout');
+      navigate('/checkout', { state: { buyNowFastPath: true } });
       return;
     }
 
     useCartStore.getState().clearReservations();
     if (options?.skipAuthCheck || isAuthenticated) {
-      const addedLocally = addSelectionsToLocalCart();
+      const addedLocally = addSelectionsToLocalCart(payload);
       if (addedLocally) {
-        navigate('/checkout');
+        navigate('/checkout', { state: { buyNowFastPath: true } });
       }
       return;
     }
@@ -530,38 +563,56 @@ export default function ProductDetailPage() {
     }
   };
 
+  const runBuyNow = async (
+    payload: NonNullable<ReturnType<typeof createBuyNowPayload>>,
+    options?: { skipAuthCheck?: boolean }
+  ) => {
+    setIsBuyingNow(true);
+
+    try {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      await performBuyNow(payload, options);
+    } finally {
+      setIsBuyingNow(false);
+    }
+  };
+
   const handleBuyNow = async () => {
-    if (!isAuthenticated) {
-      setPendingAuthAction('buy');
-      setShowAuthModal(true);
+    if (isBuyingNow) {
       return;
     }
 
-    const selections = getSelectedSizeEntries();
-    if (selections.length === 0) {
+    const payload = createBuyNowPayload();
+    if (!payload) {
       toast.error('Please select a size');
       return;
     }
 
-    const productId = getProductId(product!);
-    const cartItems = useCartStore.getState().items;
-    const alreadyInCart = selections.every(sel =>
+    if (!isAuthenticated) {
+      setPendingAuthAction('buy');
+      setPendingBuyNowPayload(payload);
+      setShowAuthModal(true);
+      return;
+    }
+
+    const cartItems = payload.cartItems;
+    const alreadyInCart = payload.selections.every(sel =>
       cartItems.some(
         item =>
-          getProductId(item.product) === productId &&
+          getProductId(item.product) === payload.productId &&
           item.size === sel.size &&
-          (item.color || undefined) === (selectedColor || undefined) &&
+          (item.color || undefined) === (payload.color || undefined) &&
           item.quantity >= sel.quantity
       )
     );
 
     // Only block on out-of-stock if the item is NOT already in cart
-    if (!alreadyInCart && totalAvailableStock <= 0) {
+    if (!alreadyInCart && payload.totalAvailableStock <= 0) {
       toast.error('This item is sold out.');
       return;
     }
 
-    await performBuyNow();
+    await runBuyNow(payload);
   };
 
   /* WISHLIST */
@@ -991,8 +1042,9 @@ export default function ProductDetailPage() {
                         backgroundColor: ["#ffffff", "#fee2e2", "#f9fafb"],
                         transition: { duration: 0.8 }
                       } : {}}
-                      disabled={isOutOfStock}
+                      disabled={isOutOfStock || isBuyingNow}
                       onClick={() => {
+                        if (isBuyingNow) return;
                         setSelectedSize(size);
                         // Reset quantity to 1 when switching size so it never exceeds new size's stock
                         setQuantity(1);
@@ -1064,7 +1116,9 @@ export default function ProductDetailPage() {
                         ) => (
                           <button
                             key={idx}
+                            disabled={isBuyingNow}
                             onClick={() => {
+                              if (isBuyingNow) return;
                               setSelectedColor(
                                 color.colorName
                               );
@@ -1127,13 +1181,17 @@ export default function ProductDetailPage() {
                 >
                   <button
                     onClick={() =>
+                    {
+                      if (isBuyingNow) return;
                       setQuantity(
                         Math.max(
                           1,
                           quantity - 1
                         )
-                      )
+                      );
                     }
+                    }
+                    disabled={isBuyingNow}
                     className="
                       flex
                       h-10
@@ -1151,6 +1209,7 @@ export default function ProductDetailPage() {
 
                   <button
                     onClick={() => {
+                      if (isBuyingNow) return;
                       const maxQty = selectedSize ? getAvailableStock(selectedSize) : 0;
                       if (maxQty > 0 && quantity >= maxQty) {
                         toast.error(`Only ${maxQty} item${maxQty === 1 ? '' : 's'} available for size ${selectedSize}.`);
@@ -1159,6 +1218,7 @@ export default function ProductDetailPage() {
                       setQuantity(quantity + 1);
                     }}
                     disabled={
+                      isBuyingNow ||
                       !selectedSize ||
                       (selectedSize ? quantity >= getAvailableStock(selectedSize) : false)
                     }
@@ -1182,7 +1242,7 @@ export default function ProductDetailPage() {
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={handleAddToCart}
-                  disabled={totalAvailableStock <= 0}
+                  disabled={totalAvailableStock <= 0 || isBuyingNow}
                   className="
                     flex
                     flex-1
@@ -1211,7 +1271,7 @@ export default function ProductDetailPage() {
                   onFocus={() => void preloadCheckoutPage()}
                   onMouseEnter={() => void preloadCheckoutPage()}
                   onTouchStart={() => void preloadCheckoutPage()}
-                  disabled={totalAvailableStock <= 0}
+                  disabled={(totalAvailableStock <= 0 && !buyNowAlreadyInCart) || isBuyingNow}
                   className="
                     flex-1
                     rounded-full
@@ -1221,11 +1281,18 @@ export default function ProductDetailPage() {
                     text-white
                     transition-all
                     hover:opacity-90
-                    disabled:opacity-50
                     disabled:cursor-not-allowed
+                    disabled:opacity-50
                   "
                 >
-                  Buy Now
+                  {isBuyingNow ? (
+                    <span className="inline-flex items-center justify-center gap-2">
+                      <Loader2 size={18} className="animate-spin" />
+                      Adding...
+                    </span>
+                  ) : (
+                    'Buy Now'
+                  )}
                 </button>
               </div>
 
@@ -1359,6 +1426,7 @@ export default function ProductDetailPage() {
         onClose={() => {
           setShowAuthModal(false);
           setPendingAuthAction(null);
+          setPendingBuyNowPayload(null);
         }}
         onSuccess={async () => {
           setShowAuthModal(false);
@@ -1366,7 +1434,11 @@ export default function ProductDetailPage() {
 
           if (pendingAuthAction === 'buy') {
             setPendingAuthAction(null);
-            await performBuyNow({ skipAuthCheck: true });
+            const payload = pendingBuyNowPayload;
+            setPendingBuyNowPayload(null);
+            if (payload) {
+              await runBuyNow(payload, { skipAuthCheck: true });
+            }
             return;
           }
 

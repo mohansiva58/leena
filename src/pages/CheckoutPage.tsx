@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ChevronLeft, CreditCard, Check, AlertCircle, Plus, Pencil, Trash2, Minus, ShoppingBag, Truck } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
@@ -47,6 +47,9 @@ const isValidIndianPhone = (phone: string) => /^[6-9]\d{9}$/.test(normalizeIndia
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const checkoutState = location.state as { buyNowFastPath?: boolean } | null;
+  const buyNowFastPath = Boolean(checkoutState?.buyNowFastPath);
   const { items, getTotalPrice, getTotalItems, clearCart, removeItem } = useCartStore();
   const { isAuthenticated, user } = useAuth();
   useRealTimeStock();
@@ -80,20 +83,22 @@ export default function CheckoutPage() {
         setIsSecuringItems(true);
 
         try {
-          if (isAuthenticated) {
+          if (isAuthenticated && !buyNowFastPath) {
             await mergeLocalCartToServer();
           }
 
-          const availability = await cartService.getAvailability().catch(() => null);
-          if (availability && !availability.available) {
-            const errors: Record<string, string> = {};
-            availability.items.forEach((item) => {
-              if (!item.available) {
-                errors[`${item.productId}-${item.size}`] = item.message || `Only ${item.availableToBuy} available`;
-              }
-            });
-            setStockErrors(errors);
-            throw new Error('Some items are no longer available in the requested quantity.');
+          if (!buyNowFastPath) {
+            const availability = await cartService.getAvailability().catch(() => null);
+            if (availability && !availability.available) {
+              const errors: Record<string, string> = {};
+              availability.items.forEach((item) => {
+                if (!item.available) {
+                  errors[`${item.productId}-${item.size}`] = item.message || `Only ${item.availableToBuy} available`;
+                }
+              });
+              setStockErrors(errors);
+              throw new Error('Some items are no longer available in the requested quantity.');
+            }
           }
 
           const reservation = await productService.reserveInventory({
@@ -185,7 +190,7 @@ export default function CheckoutPage() {
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, user?.uid]);
+  }, [isAuthenticated, user?.uid, buyNowFastPath]);
 
   // ^ Intentionally only depends on auth, not items — we want reserve to run
   //   once when entering checkout, and cleanup to run once when leaving.
@@ -313,7 +318,7 @@ export default function CheckoutPage() {
           const errors: Record<string, string> = {};
           availability.items.forEach((item) => {
             if (!item.available) {
-              errors[`${item.productId}-${item.size}`] = item.message || `Only ${item.maxAvailable} available`;
+              errors[`${item.productId}-${item.size}`] = item.message || `Only ${item.availableToBuy} available`;
             }
           });
           setStockErrors(errors);

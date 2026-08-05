@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import {
@@ -84,6 +84,8 @@ const statusColors: Record<string, string> = {
   Pending: 'bg-muted text-muted-foreground',
 };
 
+const ADMIN_PRODUCTS_PAGE_SIZE = 12;
+
 type TabType = 'dashboard' | 'orders' | 'products' | 'sales' | 'coupons';
 
 const orderTransitions: Record<string, string[]> = {
@@ -161,6 +163,21 @@ const normalizeList = <T,>(value: unknown, keys: string[] = []): T[] => {
   return [];
 };
 
+const isPagedProductsResponse = (value: unknown): value is {
+  items?: Product[];
+  total?: number;
+  page?: number;
+  limit?: number;
+  hasMore?: boolean;
+} => Boolean(value && typeof value === 'object' && !Array.isArray(value));
+
+const mergeProductsById = (existing: Product[], incoming: Product[]) => {
+  const merged = new Map<string, Product>();
+  existing.forEach((product) => merged.set(product.productId, product));
+  incoming.forEach((product) => merged.set(product.productId, product));
+  return Array.from(merged.values());
+};
+
 export default function AdminPage() {
   const { user, isAuthenticated, loading: authLoading, signOut } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -193,12 +210,16 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
+  const [productsPage, setProductsPage] = useState(0);
+  const [productsHasMore, setProductsHasMore] = useState(false);
+  const [productsTotal, setProductsTotal] = useState(0);
   const [orders, setOrders] = useState<Order[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [saleModes, setSaleModes] = useState<SaleMode[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isAddSaleModalOpen, setIsAddSaleModalOpen] = useState(false);
   const [isAddCouponModalOpen, setIsAddCouponModalOpen] = useState(false);
@@ -222,21 +243,98 @@ export default function AdminPage() {
   const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch products
-  const fetchProducts = async () => {
-    try {
+  const parseProductsPage = useCallback((data: unknown, fallbackPage: number) => {
+    if (Array.isArray(data)) {
+      return {
+        items: data as Product[],
+        total: data.length,
+        page: fallbackPage,
+        hasMore: data.length >= ADMIN_PRODUCTS_PAGE_SIZE,
+      };
+    }
+
+    if (isPagedProductsResponse(data)) {
+      const items = Array.isArray(data.items) ? data.items : [];
+      return {
+        items,
+        total: Number(data.total ?? items.length),
+        page: Number(data.page ?? fallbackPage),
+        hasMore: Boolean(data.hasMore ?? items.length >= ADMIN_PRODUCTS_PAGE_SIZE),
+      };
+    }
+
+    return {
+      items: [] as Product[],
+      total: 0,
+      page: fallbackPage,
+      hasMore: false,
+    };
+  }, []);
+
+  const fetchProductsPage = useCallback(async (page: number, mode: 'reset' | 'append') => {
+    if (mode === 'reset') {
       setLoading(true);
-      // Add cache-busting parameter to force fresh data
-      const response = await api.get(`/products?fresh=true&_=${Date.now()}`);
-      setProducts(normalizeList<Product>(response.data, ['products']));
+    } else {
+      setLoadingMoreProducts(true);
+    }
+
+    try {
+      const response = await api.get(`/products?fresh=true&page=${page}&limit=${ADMIN_PRODUCTS_PAGE_SIZE}&_=${Date.now()}`);
+      const parsed = parseProductsPage(response.data, page);
+
+      setProducts((current) => (mode === 'append' ? mergeProductsById(current, parsed.items) : parsed.items));
+      setProductsPage(parsed.page);
+      setProductsHasMore(parsed.hasMore);
+      setProductsTotal(parsed.total);
     } catch (error) {
       console.error('Failed to fetch products:', error);
       toast.error('Failed to load products');
-      setProducts([]);
+      if (mode === 'reset') {
+        setProducts([]);
+        setProductsPage(0);
+        setProductsHasMore(false);
+        setProductsTotal(0);
+      }
+    } finally {
+      if (mode === 'reset') {
+        setLoading(false);
+      } else {
+        setLoadingMoreProducts(false);
+      }
+    }
+  }, [parseProductsPage]);
+
+  const refreshLoadedProducts = useCallback(async () => {
+    const pagesToLoad = Math.max(productsPage, 1);
+
+    try {
+      setLoading(true);
+      const responses = await Promise.all(
+        Array.from({ length: pagesToLoad }, (_, index) =>
+          api.get(`/products?fresh=true&page=${index + 1}&limit=${ADMIN_PRODUCTS_PAGE_SIZE}&_=${Date.now()}`)
+        )
+      );
+
+      const pages = responses.map((response, index) => parseProductsPage(response.data, index + 1));
+      const merged = pages.flatMap((page) => page.items);
+      const lastPage = pages[pages.length - 1];
+
+      setProducts(merged);
+      setProductsPage(lastPage?.page ?? pagesToLoad);
+      setProductsHasMore(lastPage?.hasMore ?? false);
+      setProductsTotal(lastPage?.total ?? merged.length);
+    } catch (error) {
+      console.error('Failed to refresh products:', error);
+      toast.error('Failed to refresh products');
     } finally {
       setLoading(false);
     }
-  };
+  }, [parseProductsPage, productsPage]);
+
+  // Fetch products
+  const fetchProducts = useCallback(async () => {
+    await fetchProductsPage(1, 'reset');
+  }, [fetchProductsPage]);
 
   const fetchOrders = async () => {
     try {
@@ -362,7 +460,7 @@ export default function AdminPage() {
       fetchStats();
       fetchProducts();
     }
-  }, [activeTab, isAuthenticated, isAdmin, adminChecked]);
+  }, [activeTab, isAuthenticated, isAdmin, adminChecked, fetchProducts]);
 
   const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -383,7 +481,7 @@ export default function AdminPage() {
 
         toast.dismiss(loadingToast);
         toast.success(`Successfully uploaded ${json.length} products`);
-        fetchProducts();
+        await refreshLoadedProducts();
       } catch (error) {
         console.error('Bulk upload error:', error);
         toast.error('Failed to process bulk upload. Ensure valid JSON.');
@@ -398,7 +496,7 @@ export default function AdminPage() {
     try {
       await api.delete(`/products/${productId}`);
       toast.success('Product deleted successfully');
-      fetchProducts();
+      await refreshLoadedProducts();
     } catch (error) {
       console.error('Delete product error:', error);
       toast.error('Failed to delete product');
@@ -466,6 +564,11 @@ export default function AdminPage() {
     p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.category?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleLoadMoreProducts = async () => {
+    if (loadingMoreProducts || !productsHasMore) return;
+    await fetchProductsPage(productsPage + 1, 'append');
+  };
 
   if (authLoading || !adminChecked) {
     return (
@@ -767,75 +870,91 @@ export default function AdminPage() {
                 {loading ? (
                   <div className="p-10 text-center text-muted-foreground">Loading products...</div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-secondary">
-                        <tr>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Product</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Category</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Price</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Rating</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Status</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {filteredProducts.map((product) => (
-                          <tr key={product._id} className="hover:bg-secondary/50 transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-12 h-14 rounded-lg overflow-hidden bg-secondary">
-                                  <img
-                                    src={product.image}
-                                    alt={product.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                </div>
-                                <span className="font-medium text-sm">{product.name}</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-muted-foreground">{product.category}</td>
-                            <td className="px-6 py-4 text-sm font-medium">{formatCurrency(product.price)}</td>
-                            <td className="px-6 py-4 text-sm">⭐ {product.rating}</td>
-                            <td className="px-6 py-4">
-                              {product.newArrival && (
-                                <span className="px-2 py-1 text-xs font-medium rounded-full bg-secondary text-foreground mr-1">
-                                  New
-                                </span>
-                              )}
-                              {product.isBestseller && (
-                                <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary text-primary-foreground">
-                                  Bestseller
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() => { setEditingProduct(product); setIsAddModalOpen(true); }}
-                                  className="p-2 hover:bg-secondary rounded-lg transition-colors"
-                                >
-                                  <Edit size={16} />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteProduct(product.productId)}
-                                  className="p-2 hover:bg-secondary rounded-lg transition-colors text-destructive"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                        {filteredProducts.length === 0 && (
+                  <div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-secondary">
                           <tr>
-                            <td colSpan={6} className="text-center py-10 text-muted-foreground">
-                              No products found
-                            </td>
+                            <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Product</th>
+                            <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Category</th>
+                            <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Price</th>
+                            <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Rating</th>
+                            <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Status</th>
+                            <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Actions</th>
                           </tr>
-                        )}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {filteredProducts.map((product) => (
+                            <tr key={product._id} className="hover:bg-secondary/50 transition-colors">
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-12 h-14 rounded-lg overflow-hidden bg-secondary">
+                                    <img
+                                      src={product.image}
+                                      alt={product.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                  <span className="font-medium text-sm">{product.name}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-sm text-muted-foreground">{product.category}</td>
+                              <td className="px-6 py-4 text-sm font-medium">{formatCurrency(product.price)}</td>
+                              <td className="px-6 py-4 text-sm">⭐ {product.rating}</td>
+                              <td className="px-6 py-4">
+                                {product.newArrival && (
+                                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-secondary text-foreground mr-1">
+                                    New
+                                  </span>
+                                )}
+                                {product.isBestseller && (
+                                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary text-primary-foreground">
+                                    Bestseller
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => { setEditingProduct(product); setIsAddModalOpen(true); }}
+                                    className="p-2 hover:bg-secondary rounded-lg transition-colors"
+                                  >
+                                    <Edit size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteProduct(product.productId)}
+                                    className="p-2 hover:bg-secondary rounded-lg transition-colors text-destructive"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                          {filteredProducts.length === 0 && (
+                            <tr>
+                              <td colSpan={6} className="text-center py-10 text-muted-foreground">
+                                No products found
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="flex flex-col gap-3 border-t border-border px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-muted-foreground">
+                        Loaded {products.length} of {productsTotal || products.length} products
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleLoadMoreProducts}
+                        disabled={!productsHasMore || loadingMoreProducts}
+                        className="inline-flex items-center justify-center rounded-full border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {loadingMoreProducts ? 'Loading more...' : productsHasMore ? 'Load More Products' : 'All products loaded'}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1201,7 +1320,7 @@ export default function AdminPage() {
       <AddProductModal
         isOpen={isAddModalOpen}
         onClose={() => { setIsAddModalOpen(false); setEditingProduct(undefined); }}
-        onSuccess={() => fetchProducts()}
+        onSuccess={refreshLoadedProducts}
         product={editingProduct}
       />
 
